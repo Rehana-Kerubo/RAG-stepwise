@@ -1,0 +1,11 @@
+# Merchant KYC and Verification
+
+Every new merchant must complete Know Your Customer (KYC) verification before their account is activated. This is a compliance requirement and cannot be skipped.
+
+Required documents: a copy of the owner's national ID or passport, a passport-size photo taken at the point of registration, and proof of business location (a business permit or a utility bill in the business name).
+
+Agents should photograph documents directly through the agent app's camera feature, not upload photos from the gallery, to prevent tampering. Ensure the ID is clearly visible with no glare before submitting.
+
+Verification is usually processed within 24 hours. The merchant will receive an SMS once approved. If verification is rejected, the SMS will state the reason (usually blurry documents or a name mismatch) and the agent should re-collect the documents and resubmit.
+
+A merchant cannot receive payments until KYC is approved, even if the POS device is already active.
