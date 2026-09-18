@@ -7,6 +7,19 @@ embeds each chunk, and stores them in a local ChromaDB collection.
 Run this once to build the vector store, and again any time the
 onboarding docs change.
 """
+import gdown
+import os
+
+# Download documents from Google Drive
+DRIVE_FOLDER_ID = "1WXMzsx8tAeVNyPMJunEV6yrtL3VuPzP5"
+DOCS_PATH = "sample_docs/"
+
+def download_from_drive():
+    url = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
+    gdown.download_folder(url, output=DOCS_PATH, quiet=False)
+
+# Call this before ingesting
+download_from_drive()
 
 import os
 import chromadb
