@@ -1,4 +1,4 @@
-# StepWise — AI-Powered Onboarding Navigator
+# StepWise - AI-Powered Onboarding Navigator
 
 StepWise is a mobile-first Progressive Web Application designed to guide independent sales agents through structured onboarding workflows in real time. Built for the SalesMesh distributed sales platform, the system enforces sequential step completion, generates contextually grounded AI guidance at each step using Retrieval-Augmented Generation, and provides managers with live oversight through a real-time dashboard and alert system.
 
@@ -17,7 +17,7 @@ StepWise consists of three integrated components:
 
 ---
 
-## AI Guidance — RAG Pipeline
+## AI Guidance - RAG Pipeline
 
 The AI guidance layer uses Retrieval-Augmented Generation to deliver contextually accurate onboarding assistance to agents in the field.
 
@@ -88,7 +88,7 @@ php artisan serve
 | Sprint | Focus | Status |
 |---|---|---|
 | Sprint 1 | Development environment setup, RAG pipeline, knowledge base | 🟡 In Progress |
-| Sprint 2 | Laravel backend, database migrations, RAG integration | ⬜ Pending |
+| Sprint 2 | Laravel backend, database migrations, RAG integration |🟡 In Progress|
 | Sprint 3 | PWA frontend - agent interface | ⬜ Pending |
 | Sprint 4 | Manager dashboard | ⬜ Pending |
 | Sprint 5 | Alert engine, offline support | ⬜ Pending |
