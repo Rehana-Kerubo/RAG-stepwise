@@ -54,7 +54,7 @@ The AI guidance layer uses Retrieval-Augmented Generation to deliver contextuall
 
 ```bash
 # Navigate to the RAG service directory
-cd rag-service
+cd rag
 
 # Create a virtual environment
 python -m venv venv
