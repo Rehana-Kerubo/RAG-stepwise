@@ -58,7 +58,7 @@ cd rag
 
 # Create a virtual environment
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -70,7 +70,7 @@ python ingest.py
 python query.py
 ```
 
-### Backend Setup (coming in Sprint 2)
+### Backend Setup 
 
 ```bash
 cd backend
