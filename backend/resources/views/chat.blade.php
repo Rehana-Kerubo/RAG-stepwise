@@ -374,110 +374,179 @@
     // RENDER CURRENT STEP
     // ============================================================
     function renderStepInput(step) {
-
+    const order = Number(step.order_number);
     let html = '';
 
-    // Step 1 — Customer ID / Passport
-    if (step.order_number === 1) {
+    const fileClasses = `
+        block w-full text-sm text-gray-600
+        border border-gray-300 rounded-xl px-3 py-3
+        file:mr-3 file:rounded-lg file:border-0 file:px-3
+        file:py-2 file:bg-indigo-50 file:text-indigo-700
+    `;
 
-        stepInputLabel.textContent =
-            'Customer ID / Passport';
+    const checkboxClasses =
+        'h-5 w-5 rounded border-gray-300 text-indigo-600';
 
-        html = `
-            <input
-                type="file"
-                id="step-input"
-                accept="image/*"
-                capture="environment"
-                class="block w-full text-sm text-gray-600
-                       border border-gray-300 rounded-xl
-                       px-3 py-3
-                       file:mr-3
-                       file:rounded-lg
-                       file:border-0
-                       file:px-3
-                       file:py-2
-                       file:bg-indigo-50
-                       file:text-indigo-700"
-            >
+    function confirmation(label) {
+        return `
+            <label class="flex items-start gap-3 border border-gray-200 rounded-xl p-4">
+                <input type="checkbox" id="step-input"
+                    class="${checkboxClasses} mt-1">
+                <span class="text-sm text-gray-700">${label}</span>
+            </label>
         `;
-
     }
 
-    // Step 2 — Customer Photo
-    else if (step.order_number === 2) {
+    // Steps 1–3: Capture documents and photos
+    if (order >= 1 && order <= 3) {
+        const configs = {
+            1: {
+                label: 'Customer ID / Passport',
+                description: 'Capture a clear image of the customer’s national ID or passport.',
+                capture: 'environment',
+                accept: 'image/*'
+            },
+            2: {
+                label: 'Customer Photo',
+                description: 'Take a clear passport-size photo of the customer.',
+                capture: 'user',
+                accept: 'image/*'
+            },
+            3: {
+                label: 'Proof of Business Location',
+                description: 'Capture the business permit or utility bill showing the business location.',
+                capture: 'environment',
+                accept: 'image/*'
+            }
+        };
 
-        stepInputLabel.textContent =
-            'Customer Photo';
+        const config = configs[order];
+        stepInputLabel.textContent = config.label;
 
         html = `
-            <input
-                type="file"
-                id="step-input"
-                accept="image/*"
-                capture="user"
-                class="block w-full text-sm text-gray-600
-                       border border-gray-300 rounded-xl
-                       px-3 py-3
-                       file:mr-3
-                       file:rounded-lg
-                       file:border-0
-                       file:px-3
-                       file:py-2
-                       file:bg-indigo-50
-                       file:text-indigo-700"
-            >
+            <p class="text-sm text-gray-500 mb-3">
+                ${config.description}
+            </p>
+            <input type="file" id="step-input"
+                accept="${config.accept}"
+                capture="${config.capture}"
+                class="${fileClasses}">
         `;
-
     }
 
-    // Step 3 — Business Location Proof
-    else if (step.order_number === 3) {
-
-        stepInputLabel.textContent =
-            'Proof of Business Location';
-
-        html = `
-            <input
-                type="file"
-                id="step-input"
-                accept="image/*"
-                capture="environment"
-                class="block w-full text-sm text-gray-600
-                       border border-gray-300 rounded-xl
-                       px-3 py-3
-                       file:mr-3
-                       file:rounded-lg
-                       file:border-0
-                       file:px-3
-                       file:py-2
-                       file:bg-indigo-50
-                       file:text-indigo-700"
-            >
-        `;
-
+    // Step 4: Review and submit KYC documents
+    else if (order === 4) {
+        stepInputLabel.textContent = 'KYC Submission';
+        html = confirmation(
+            'I have reviewed the required KYC documents and submitted them for verification.'
+        );
     }
 
-    // Temporary fallback for other steps
-    else {
+    // Step 5: Power on POS
+    else if (order === 5) {
+        stepInputLabel.textContent = 'POS Device';
+        html = confirmation(
+            'I have powered on the POS device and confirmed that it starts successfully.'
+        );
+    }
 
-        stepInputLabel.textContent =
-            'Step submission';
+    // Step 6: Connect POS
+    else if (order === 6) {
+        stepInputLabel.textContent = 'Network Connection';
+        html = confirmation(
+            'I have connected the POS device to Wi-Fi or mobile data and confirmed connectivity.'
+        );
+    }
 
+    // Step 7: Activation code
+    else if (order === 7) {
+        stepInputLabel.textContent = 'POS Activation Code';
         html = `
-            <textarea
-                id="step-input"
-                rows="4"
-                placeholder="Enter the information or confirmation for this step..."
+            <input type="text" id="step-input"
+                placeholder="Enter activation code"
+                autocomplete="off"
                 class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            </textarea>
+        `;
+    }
+
+    // Step 8: Test transaction
+    else if (order === 8) {
+        stepInputLabel.textContent = 'Test Transaction';
+        html = confirmation(
+            'I performed the KES 1 test transaction and confirmed it appeared on the merchant dashboard within 2 minutes.'
+        );
+    }
+
+    // Step 9: Till or Paybill request
+    else if (order === 9) {
+        stepInputLabel.textContent = 'Till / Paybill Request';
+        html = `
+            <label for="request-type" class="block text-sm text-gray-600 mb-2">
+                Request type
+            </label>
+            <select id="request-type"
+                class="w-full border border-gray-300 rounded-xl px-4 py-3 mb-4 text-sm">
+                <option value="">Choose request type</option>
+                <option value="Till">Till</option>
+                <option value="Paybill">Paybill</option>
+            </select>
+            ${confirmation(
+                'I have checked the applicable requirements and submitted the request.'
+            )}
+        `;
+    }
+
+    // Step 10: Confirmation
+    else if (order === 10) {
+        stepInputLabel.textContent = 'Activation Confirmation';
+        html = confirmation(
+            'I have confirmed that the merchant received the SMS confirming Till or Paybill activation.'
+        );
+    }
+
+    // Step 11: First transaction
+    else if (order === 11) {
+        stepInputLabel.textContent = 'First Transaction';
+        html = confirmation(
+            'I guided the merchant through a transaction and confirmed it completed successfully.'
+        );
+    }
+
+    // Step 12: Transaction history
+    else if (order === 12) {
+        stepInputLabel.textContent = 'Transaction History';
+        html = confirmation(
+            'I showed the merchant how to view their balance and transaction history.'
+        );
+    }
+
+    // Step 13: Staff accounts
+    else if (order === 13) {
+        stepInputLabel.textContent = 'Staff Account Setup';
+        html = `
+            <p class="text-sm text-gray-500 mb-3">
+                Does the merchant have employees who need individual accounts?
+            </p>
+            <select id="step-input"
+                class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm">
+                <option value="">Choose an option</option>
+                <option value="setup_required">Yes — staff accounts have been set up</option>
+                <option value="not_applicable">No additional staff accounts are needed</option>
+            </select>
+        `;
+    }
+
+    else {
+        stepInputLabel.textContent = 'Step submission';
+        html = `
+            <textarea id="step-input" rows="3"
+                placeholder="Enter your response"
+                class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm"></textarea>
         `;
     }
 
     stepInputContainer.innerHTML = html;
-
-    stepInput =
-        document.getElementById('step-input');
+    stepInput = stepInputContainer.querySelector('#step-input');
 }
 
     function renderCurrentStep() {
@@ -556,61 +625,125 @@
     // SUBMIT CURRENT STEP
     // ============================================================
 
-    nextButton.addEventListener('click', async () => {
-
+   nextButton.addEventListener('click', async () => {
     const step = steps[currentStepIndex];
 
-    if (!step) return;
+    if (!step || !stepInput) return;
 
-    const file = stepInput.files?.[0];
+    const order = Number(step.order_number);
+    const payload = {};
 
-    if (!file) {
+    // Steps 1–3: Read selected image
+    if (order >= 1 && order <= 3) {
+        const file = stepInput.files?.[0];
 
-        alert(
-            'Please capture or select the customer ID or passport before continuing.'
-        );
+        if (!file) {
+            alert('Please capture or select the required image.');
+            return;
+        }
 
-        return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select a valid image file.');
+            return;
+        }
 
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Please select an image smaller than 5 MB.');
+            return;
+        }
+
+        try {
+            payload.type = 'document';
+            payload.filename = file.name;
+            payload.mime_type = file.type;
+            payload.response = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(
+                    new Error('Could not read the selected image.')
+                );
+                reader.readAsDataURL(file);
+            });
+        } catch (error) {
+            alert(error.message);
+            return;
+        }
+    }
+
+    // Step 7: Activation code
+    else if (order === 7) {
+        const code = stepInput.value.trim();
+
+        if (!code) {
+            alert('Please enter the POS activation code.');
+            return;
+        }
+
+        payload.type = 'activation_code';
+        payload.response = code;
+    }
+
+    // Step 9: Till or Paybill request
+    else if (order === 9) {
+        const requestType =
+            stepInputContainer.querySelector('#request-type')?.value;
+
+        const confirmed =
+            stepInputContainer.querySelector('input[type="checkbox"]')?.checked;
+
+        if (!requestType) {
+            alert('Please choose Till or Paybill.');
+            return;
+        }
+
+        if (!confirmed) {
+            alert('Please confirm that you submitted the request.');
+            return;
+        }
+
+        payload.type = 'linking_request';
+        payload.request_type = requestType;
+        payload.response = 'Request requirements checked and request submitted';
+    }
+
+    // Step 13: Staff accounts
+    else if (order === 13) {
+        const choice = stepInput.value;
+
+        if (!choice) {
+            alert('Please select an option for staff account setup.');
+            return;
+        }
+
+        payload.type = 'staff_accounts';
+        payload.response = choice;
+    }
+
+    // Steps 4–6 and 8, 10–12: Confirmation
+    else {
+        if (!stepInput.checked) {
+            alert('Please confirm that you completed this action.');
+            return;
+        }
+
+        payload.type = 'confirmation';
+        payload.response = 'Confirmed by agent';
     }
 
     nextButton.disabled = true;
     nextButton.textContent = 'Saving...';
 
     try {
-
-        const submission = await new Promise((resolve, reject) => {
-
-            const reader = new FileReader();
-
-            reader.onload = () => resolve(reader.result);
-
-            reader.onerror = () =>
-                reject(new Error('Could not read the selected document.'));
-
-            reader.readAsDataURL(file);
-
-        });
-
         const response = await fetch(
             `/api/sessions/${SESSION_ID}/steps/${step.id}/submit`,
             {
                 method: 'POST',
-
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-
                 body: JSON.stringify({
-
-                    submission_data: {
-                        type: 'document',
-                        filename: file.name,
-                        mime_type: file.type,
-                        response: submission
-                    }
-
+                    submission_data: payload
                 })
             }
         );
@@ -618,60 +751,41 @@
         const data = await response.json();
 
         if (!response.ok) {
-
             throw new Error(
-                data.message ||
-                'Could not submit this step.'
+                data.message || 'Could not submit this step.'
             );
-
         }
 
-        // Mark current step complete locally.
         steps[currentStepIndex].completed = true;
 
-        // Move to next step.
         if (data.onboarding_complete) {
-
-            stepCounter.textContent =
-                'Onboarding Complete';
-
-            stepTitle.textContent =
-                'Merchant onboarding completed';
-
+            stepCounter.textContent = 'Onboarding Complete';
+            stepTitle.textContent = 'Merchant onboarding completed';
             stepInstructions.textContent =
-                'All onboarding steps have been completed successfully.';
-
+                'You have reached the end of the onboarding workflow.';
             guidanceLabel.textContent =
-                'You have completed the StepWise onboarding process.';
-
-            stepInput.value = '';
-
-            nextButton.textContent =
-                'COMPLETED';
-
-            nextButton.disabled = true;
-
+                'All onboarding steps have been submitted.';
+            stepInputContainer.innerHTML = '';
+            nextButton.textContent = 'COMPLETED';
             renderStepsList();
-
             return;
-
         }
 
         currentStepIndex++;
-
         renderCurrentStep();
 
     } catch (error) {
-
         alert(error.message);
-
-        nextButton.textContent =
-            'NEXT';
-
+        nextButton.textContent = 'NEXT';
+    } finally {
+        if (nextButton.textContent !== 'COMPLETED') {
+            nextButton.disabled = false;
+            nextButton.textContent =
+                currentStepIndex === steps.length - 1
+                    ? 'COMPLETE ONBOARDING'
+                    : 'NEXT';
+        }
     }
-
-    nextButton.disabled = false;
-
 });
 
     // ============================================================
