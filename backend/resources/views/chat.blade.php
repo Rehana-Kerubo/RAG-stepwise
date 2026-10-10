@@ -2,12 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>StepWise - Onboarding Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
 </head>
 
 <body class="bg-gray-100 min-h-screen p-4">
+
+    <!-- Offline / sync status banner (hidden when there is nothing to report) -->
+    <div id="offline-banner" class="hidden"></div>
 
     <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4">
 
@@ -95,23 +101,23 @@
                 </div>
 
 
-<!-- Submission area -->
-<div class="mb-6">
+                <!-- Submission area -->
+                <div class="mb-6">
 
-    <label
-        id="step-input-label"
-        class="block text-sm font-medium text-gray-700 mb-2">
-        Step submission
-    </label>
+                    <label
+                        id="step-input-label"
+                        class="block text-sm font-medium text-gray-700 mb-2">
+                        Step submission
+                    </label>
 
-    <div id="step-input-container"></div>
+                    <div id="step-input-container"></div>
 
-    <p
-        id="validation-hint"
-        class="text-xs text-gray-400 mt-2">
-    </p>
+                    <p
+                        id="validation-hint"
+                        class="text-xs text-gray-400 mt-2">
+                    </p>
 
-</div>
+                </div>
 
                 <!-- AI contextual guidance -->
                 <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
@@ -152,7 +158,7 @@
                     <button
                         id="next-button"
                         type="button"
-                        class="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
+                        class="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60">
                         NEXT
                     </button>
 
@@ -226,9 +232,11 @@
     // ============================================================
 
     const SESSION_ID = 3;
+    const STEPS_CACHE_KEY = 'stepwise_steps_' + SESSION_ID;
 
     let steps = [];
     let currentStepIndex = 0;
+    let finishedShown = false;
 
 
     // ============================================================
@@ -254,38 +262,212 @@
     const nextButton = document.getElementById('next-button');
     const helpButton = document.getElementById('help-button');
 
+    const offlineBanner = document.getElementById('offline-banner');
+
 
     // ============================================================
-    // LOAD STEPS
+    // OFFLINE QUEUE (IndexedDB)
+    // Photos can be several MB, which is too big for localStorage,
+    // so submissions waiting to sync are stored in IndexedDB.
     // ============================================================
+
+    const DB_NAME = 'stepwise-offline';
+    const STORE = 'queue';
+
+    function openDb() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+
+            request.onupgradeneeded = () => {
+                request.result.createObjectStore(STORE, { keyPath: 'key' });
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async function dbRun(mode, work) {
+        const db = await openDb();
+
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE, mode);
+            const request = work(tx.objectStore(STORE));
+
+            tx.oncomplete = () => resolve(request ? request.result : undefined);
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+        });
+    }
+
+    const dbPut = (item) => dbRun('readwrite', store => store.put(item));
+    const dbDelete = (key) => dbRun('readwrite', store => store.delete(key));
+    const dbAll = () => dbRun('readonly', store => store.getAll());
+
+    // Queue for this session, in step order (the server requires earlier steps first)
+    async function getQueue() {
+        try {
+            const all = await dbAll();
+
+            return all
+                .filter(item => item.sessionId === SESSION_ID)
+                .sort((a, b) => a.order - b.order);
+        } catch (error) {
+            return [];
+        }
+    }
+
+    async function queueSubmission(step, payload) {
+        await dbPut({
+            key: `${SESSION_ID}-${step.id}`,
+            sessionId: SESSION_ID,
+            stepId: step.id,
+            order: Number(step.order_number),
+            title: step.title,
+            payload: payload,
+            queuedAt: Date.now(),
+            error: null
+        });
+
+        step.queued = true;
+    }
+
+
+    // ============================================================
+    // STATUS BANNER
+    // ============================================================
+
+    async function updateBanner() {
+
+        const queue = await getQueue();
+        const stuck = queue.find(item => item.error);
+
+        const base = 'max-w-6xl mx-auto mb-4 rounded-lg px-4 py-2 text-sm text-white ';
+
+        if (stuck) {
+
+            offlineBanner.className = base + 'bg-red-600';
+            offlineBanner.textContent =
+                `Sync paused on "${stuck.title}": ${stuck.error}`;
+
+        } else if (!navigator.onLine) {
+
+            offlineBanner.className = base + 'bg-amber-500';
+            offlineBanner.textContent =
+                "You're offline. You can keep working through the steps; " +
+                "submissions are saved on this device and will sync when you reconnect." +
+                (queue.length ? ` (${queue.length} waiting)` : '');
+
+        } else if (queue.length) {
+
+            offlineBanner.className = base + 'bg-amber-500';
+            offlineBanner.textContent =
+                `Syncing ${queue.length} saved submission(s)...`;
+
+        } else {
+
+            offlineBanner.className = 'hidden';
+            offlineBanner.textContent = '';
+
+        }
+
+    }
+
+
+    // ============================================================
+    // LOAD STEPS (falls back to the last cached copy when offline)
+    // ============================================================
+
+    async function fetchSteps() {
+
+        let response;
+
+        try {
+
+            response = await fetch(`/api/sessions/${SESSION_ID}/steps`);
+
+        } catch (networkError) {
+
+            const cached = localStorage.getItem(STEPS_CACHE_KEY);
+
+            if (cached) return JSON.parse(cached);
+
+            throw new Error(
+                'You are offline and no steps have been saved yet. ' +
+                'Connect once to load them.'
+            );
+
+        }
+
+        if (!response.ok) {
+            throw new Error('Could not load onboarding steps.');
+        }
+
+        const data = await response.json();
+
+        localStorage.setItem(STEPS_CACHE_KEY, JSON.stringify(data));
+
+        return data;
+
+    }
+
+    // Keep the offline copy in step with what the agent has completed,
+    // otherwise reloading offline would show stale (earlier) progress.
+    function saveStepsCache() {
+
+        try {
+
+            localStorage.setItem(
+                STEPS_CACHE_KEY,
+                JSON.stringify(steps.map(({ queued, ...rest }) => rest))
+            );
+
+        } catch (error) {}
+
+    }
 
     async function loadSteps() {
 
         try {
 
-            const response = await fetch(
-                `/api/sessions/${SESSION_ID}/steps`
-            );
+            const previousId = steps[currentStepIndex]?.id;
 
-            if (!response.ok) {
-                throw new Error('Could not load onboarding steps.');
-            }
-
-            steps = await response.json();
+            steps = await fetchSteps();
 
             if (!steps.length) {
                 throw new Error('No onboarding steps were found.');
             }
 
-            // Find the first incomplete step.
-            const firstIncomplete = steps.findIndex(
-                step => !step.completed
+            // Steps saved on this device but not yet synced count as done locally.
+            const queue = await getQueue();
+            const queuedIds = new Set(queue.map(item => item.stepId));
+
+            steps.forEach(step => {
+                step.queued = !step.completed && queuedIds.has(step.id);
+            });
+
+            // Find the first step that still needs the agent's input.
+            const firstOpen = steps.findIndex(
+                step => !step.completed && !step.queued
             );
 
-            currentStepIndex =
-                firstIncomplete === -1
-                    ? steps.length - 1
-                    : firstIncomplete;
+            if (firstOpen === -1) {
+                showFinishedScreen();
+                return;
+            }
+
+            // If the agent is mid-entry on a step that is still open, refresh the
+            // list only, so a background sync never wipes what they are typing.
+            const keepIndex = steps.findIndex(
+                step => step.id === previousId && !step.completed && !step.queued
+            );
+
+            if (keepIndex !== -1 && !finishedShown) {
+                currentStepIndex = keepIndex;
+                renderStepsList();
+                return;
+            }
+
+            currentStepIndex = firstOpen;
 
             renderStepsList();
             renderCurrentStep();
@@ -325,6 +507,11 @@
                 classes +=
                     'bg-emerald-50 border-emerald-200 text-gray-500';
 
+            } else if (step.queued) {
+
+                classes +=
+                    'bg-amber-50 border-amber-200 text-amber-800';
+
             } else if (isCurrent) {
 
                 classes +=
@@ -339,11 +526,16 @@
 
             item.className = classes;
 
+            const marker =
+                step.completed ? '✓' :
+                step.queued ? '⏳' :
+                step.order_number;
+
             item.innerHTML = `
                 <div class="flex items-start gap-3">
 
                     <div class="mt-0.5 font-semibold">
-                        ${step.completed ? '✓' : step.order_number}
+                        ${marker}
                     </div>
 
                     <div>
@@ -354,7 +546,9 @@
                         </div>
 
                         <div class="text-xs mt-1 opacity-75">
-                            ${step.guidance_label || ''}
+                            ${step.queued
+                                ? 'Saved on this device, waiting to sync'
+                                : (step.guidance_label || '')}
                         </div>
 
                     </div>
@@ -368,7 +562,6 @@
 
     }
 
-    
 
     // ============================================================
     // RENDER CURRENT STEP
@@ -549,11 +742,23 @@
     stepInput = stepInputContainer.querySelector('#step-input');
 }
 
+    function updateNextLabel() {
+
+        nextButton.textContent =
+            currentStepIndex === steps.length - 1
+                ? 'COMPLETE ONBOARDING'
+                : 'NEXT';
+
+    }
+
     function renderCurrentStep() {
 
         const step = steps[currentStepIndex];
 
         if (!step) return;
+
+        finishedShown = false;
+        nextButton.disabled = false;
 
 
         const totalSteps = steps.length;
@@ -602,18 +807,7 @@
         renderStepInput(step);
 
 
-        // Final step
-        if (currentNumber === totalSteps) {
-
-            nextButton.textContent =
-                'COMPLETE ONBOARDING';
-
-        } else {
-
-            nextButton.textContent =
-                'NEXT';
-
-        }
+        updateNextLabel();
 
 
         renderStepsList();
@@ -622,8 +816,91 @@
 
 
     // ============================================================
+    // FINISHED SCREEN
+    // Shown when every step is either synced or saved on this device.
+    // ============================================================
+
+    function showFinishedScreen() {
+
+        const pending = steps.filter(step => step.queued).length;
+
+        finishedShown = true;
+
+        if (pending) {
+
+            stepCounter.textContent = 'All steps captured';
+            stepTitle.textContent = 'Waiting to sync';
+            stepInstructions.textContent =
+                `${pending} step(s) are saved on this device and will be sent ` +
+                'automatically when you reconnect.';
+            guidanceLabel.textContent =
+                'Keep this app open or come back later; nothing will be lost.';
+            nextButton.textContent = 'WAITING TO SYNC';
+
+        } else {
+
+            stepCounter.textContent = 'Onboarding Complete';
+            stepTitle.textContent = 'Merchant onboarding completed';
+            stepInstructions.textContent =
+                'You have reached the end of the onboarding workflow.';
+            guidanceLabel.textContent =
+                'All onboarding steps have been submitted.';
+            nextButton.textContent = 'COMPLETED';
+
+        }
+
+        validationHint.textContent = '';
+        stepInputContainer.innerHTML = '';
+        stepInput = null;
+
+        progressText.textContent = `${steps.length} of ${steps.length}`;
+        progressBar.style.width = '100%';
+
+        nextButton.disabled = true;
+
+        renderStepsList();
+
+    }
+
+    function goToNextStep() {
+
+        const nextIndex = steps.findIndex(
+            (step, index) =>
+                index > currentStepIndex && !step.completed && !step.queued
+        );
+
+        if (nextIndex === -1) {
+            showFinishedScreen();
+            return;
+        }
+
+        currentStepIndex = nextIndex;
+        renderCurrentStep();
+
+    }
+
+
+    // ============================================================
     // SUBMIT CURRENT STEP
     // ============================================================
+
+    function sendSubmission(stepId, payload) {
+
+        return fetch(
+            `/api/sessions/${SESSION_ID}/steps/${stepId}/submit`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    submission_data: payload
+                })
+            }
+        );
+
+    }
 
    nextButton.addEventListener('click', async () => {
     const step = steps[currentStepIndex];
@@ -734,19 +1011,30 @@
     nextButton.textContent = 'Saving...';
 
     try {
-        const response = await fetch(
-            `/api/sessions/${SESSION_ID}/steps/${step.id}/submit`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    submission_data: payload
-                })
+
+        let response = null;
+
+        if (navigator.onLine) {
+            try {
+                response = await sendSubmission(step.id, payload);
+            } catch (networkError) {
+                response = null; // server unreachable: treat like offline
             }
-        );
+        }
+
+        // Offline (or server unreachable): keep the work on this device
+        if (response === null) {
+            try {
+                await queueSubmission(step, payload);
+            } catch (storageError) {
+                alert('Could not save this step on the device. Please reconnect and try again.');
+                return;
+            }
+
+            updateBanner();
+            goToNextStep();
+            return;
+        }
 
         const data = await response.json();
 
@@ -756,37 +1044,148 @@
             );
         }
 
-        steps[currentStepIndex].completed = true;
+        step.completed = true;
+        step.queued = false;
+
+        saveStepsCache();
+        
+        // Ask the AI for guidance on this step in the background
+        requestFeedback(step);
 
         if (data.onboarding_complete) {
-            stepCounter.textContent = 'Onboarding Complete';
-            stepTitle.textContent = 'Merchant onboarding completed';
-            stepInstructions.textContent =
-                'You have reached the end of the onboarding workflow.';
-            guidanceLabel.textContent =
-                'All onboarding steps have been submitted.';
-            stepInputContainer.innerHTML = '';
-            nextButton.textContent = 'COMPLETED';
-            renderStepsList();
+            showFinishedScreen();
             return;
         }
 
-        currentStepIndex++;
-        renderCurrentStep();
+        goToNextStep();
 
     } catch (error) {
         alert(error.message);
-        nextButton.textContent = 'NEXT';
     } finally {
-        if (nextButton.textContent !== 'COMPLETED') {
+        if (!finishedShown) {
             nextButton.disabled = false;
-            nextButton.textContent =
-                currentStepIndex === steps.length - 1
-                    ? 'COMPLETE ONBOARDING'
-                    : 'NEXT';
+            updateNextLabel();
         }
     }
 });
+
+
+    // ============================================================
+    // SYNC SAVED SUBMISSIONS WHEN BACK ONLINE
+    // ============================================================
+
+    let flushing = false;
+
+    async function flushQueue() {
+
+        if (flushing || !navigator.onLine) return;
+
+        const queue = await getQueue();
+
+        if (!queue.length) return;
+
+        flushing = true;
+
+        const synced = [];
+
+        // Oldest step first: the server rejects a step if earlier ones are missing.
+        for (const item of queue) {
+
+            let response;
+
+            try {
+                response = await sendSubmission(item.stepId, item.payload);
+            } catch (networkError) {
+                break; // still no connection; retry later
+            }
+
+            if (response.ok) {
+                await dbDelete(item.key);
+                synced.push({ id: item.stepId, title: item.title });
+                continue;
+            }
+
+            if (response.status >= 500) {
+                break; // server trouble: keep everything and retry later
+            }
+
+            // The server refused it (e.g. validation or ordering). Keep it,
+            // record why, and stop so later steps are not sent out of order.
+            let message = 'The server could not accept this submission.';
+
+            try {
+                message = (await response.json()).message || message;
+            } catch (parseError) {}
+
+            item.error = message;
+            await dbPut(item);
+            break;
+
+        }
+
+        flushing = false;
+
+        await loadSteps();
+        await updateBanner();
+
+        // Feedback for synced steps, one at a time (the model is slow)
+        for (const syncedStep of synced) {
+            await requestFeedback(syncedStep);
+        }
+
+    }
+
+    window.addEventListener('online', async () => {
+        await updateBanner();
+        flushQueue();
+    });
+
+    window.addEventListener('offline', updateBanner);
+
+    // Retry now and then, in case the server came back without a network event
+    setInterval(flushQueue, 30000);
+
+
+    // ============================================================
+    // AI FEEDBACK AFTER A STEP IS SUBMITTED
+    // ============================================================
+
+    async function requestFeedback(step) {
+
+        if (!navigator.onLine) return;
+
+        const bubble = addMessage(
+            `Checking your "${step.title}" submission...`,
+            'bot'
+        );
+
+        try {
+
+            const response = await fetch(
+                `/api/sessions/${SESSION_ID}/steps/${step.id}/feedback`,
+                {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' }
+                }
+            );
+
+            const data = await response.json();
+
+            bubble.textContent = data.feedback
+                ? `Feedback on "${step.title}": ${data.feedback}`
+                : `"${step.title}" was saved. No AI feedback is available right now.`;
+
+        } catch (error) {
+
+            bubble.textContent =
+                `"${step.title}" was saved. Feedback is unavailable because the AI service could not be reached.`;
+
+        }
+
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+
+    }
+
 
     // ============================================================
     // OPEN AI HELP
@@ -853,6 +1252,8 @@
         chatWindow.scrollTop =
             chatWindow.scrollHeight;
 
+        return bubble;
+
     }
 
 
@@ -866,6 +1267,20 @@
 
 
         if (!question) return;
+
+
+        // AI answers need the server, so be clear when offline
+        if (!navigator.onLine) {
+
+            addMessage(
+                "You're offline. StepWise's AI answers need a connection, " +
+                "but you can keep completing steps; they will sync when you reconnect.",
+                'bot'
+            );
+
+            return;
+
+        }
 
 
         addMessage(
@@ -983,9 +1398,18 @@
     // START
     // ============================================================
 
-    loadSteps();
+    updateBanner();
+
+    loadSteps().then(flushQueue);
 
 </script>
 
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js');
+        });
+    }
+</script>
 </body>
 </html>

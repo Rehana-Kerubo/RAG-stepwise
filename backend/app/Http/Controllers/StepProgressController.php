@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ChatLog;
 use App\Models\OnboardingSession;
 use App\Models\Step;
 use App\Models\StepProgress;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -90,10 +92,10 @@ class StepProgressController extends Controller
                 'submission_data.filename' => 'required|string|max:255',
                 'submission_data.mime_type' => 'required|in:image/jpeg,image/png,image/webp',
                 'submission_data.response' => [
-                     'required',
-                     'string',
-                     'max:11000000',
-                     'regex:/^data:image\/(jpeg|png|webp);base64,/',
+                    'required',
+                    'string',
+                    'max:11000000',
+                    'regex:/^data:image\/(jpeg|png|webp);base64,/',
                 ],
             ];
         }
@@ -163,49 +165,50 @@ class StepProgressController extends Controller
             $dataUrl = $submissionData['response'];
 
             if (!preg_match(
-            '/^data:image\/(jpeg|png|webp);base64,(.+)$/s',
-             $dataUrl,
-        $matches
-    )) {
-        return response()->json([
-            'message' => 'Invalid image data.',
-        ], 422);
-    }
+                '/^data:image\/(jpeg|png|webp);base64,(.+)$/s',
+                $dataUrl,
+                $matches
+            )) {
+                return response()->json([
+                    'message' => 'Invalid image data.',
+                ], 422);
+            }
 
-    $image = base64_decode($matches[2], true);
+            $image = base64_decode($matches[2], true);
 
-    if ($image === false || strlen($image) > 8 * 1024 * 1024) {
-        return response()->json([
-            'message' => 'Image is invalid or exceeds the 8 MB limit.',
-        ], 422);
-    }
+            if ($image === false || strlen($image) > 8 * 1024 * 1024) {
+                return response()->json([
+                    'message' => 'Image is invalid or exceeds the 8 MB limit.',
+                ], 422);
+            }
 
-    $extension = match ($matches[1]) {
-        'jpeg' => 'jpg',
-        'png' => 'png',
-        'webp' => 'webp',
-    };
+            $extension = match ($matches[1]) {
+                'jpeg' => 'jpg',
+                'png' => 'png',
+                'webp' => 'webp',
+            };
 
-    $actualMime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($image);
+            $actualMime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($image);
 
-    if ($actualMime !== 'image/' . $matches[1]) {
-        return response()->json([
-            'message' => 'The image content does not match its file type.',
-        ], 422);
-    }
+            if ($actualMime !== 'image/' . $matches[1]) {
+                return response()->json([
+                    'message' => 'The image content does not match its file type.',
+                ], 422);
+            }
 
-    $path = 'onboarding/' . $sessionId . '/' . Str::uuid() . '.' . $extension;
+            $path = 'onboarding/' . $sessionId . '/' . Str::uuid() . '.' . $extension;
 
-    Storage::disk('local')->put($path, $image);
+            Storage::disk('local')->put($path, $image);
 
-    unset($submissionData['response']);
+            unset($submissionData['response']);
 
-    $submissionData['file_path'] = $path;
-    $submissionData['filename'] = basename($submissionData['filename']);
-    $submissionData['mime_type'] = $actualMime;
-}
+            $submissionData['file_path'] = $path;
+            $submissionData['filename'] = basename($submissionData['filename']);
+            $submissionData['mime_type'] = $actualMime;
+        }
 
-$progress->submission_data = $submissionData;        $progress->attempts = ($progress->attempts ?? 0) + 1;
+        $progress->submission_data = $submissionData;
+        $progress->attempts = ($progress->attempts ?? 0) + 1;
         $progress->completed_at = now();
         $progress->save();
 
@@ -244,6 +247,69 @@ $progress->submission_data = $submissionData;        $progress->attempts = ($pro
                 'order_number' => $nextStep->order_number,
             ] : null,
             'onboarding_complete' => $nextStep === null,
+        ]);
+    }
+
+    /**
+     * Ask the RAG pipeline for guidance on a completed step.
+     * The frontend calls this AFTER a successful submit, so submit stays fast.
+     */
+    public function feedback(Request $request, $sessionId, $stepId)
+    {
+        $step = Step::findOrFail($stepId);
+
+        $progress = StepProgress::where('session_id', $sessionId)
+            ->where('step_id', $stepId)
+            ->whereNotNull('completed_at')
+            ->firstOrFail();
+
+        $data = $progress->submission_data;
+
+        if (!is_array($data)) {
+            $data = json_decode($data, true) ?? [];
+        }
+
+        // Describe the submission in words. Image data and codes are never sent to the model.
+        $summary = match ($data['type'] ?? '') {
+            'document' => 'The agent uploaded a file named "' . ($data['filename'] ?? 'document') . '".',
+            'activation_code' => 'The agent entered the POS activation code.',
+            'linking_request' => 'The agent requested a ' . ($data['request_type'] ?? '') . ' number. Notes: ' . ($data['response'] ?? ''),
+            'staff_accounts' => 'The agent selected: ' . ($data['response'] ?? '') . '.',
+            default => 'The agent responded: ' . ($data['response'] ?? ''),
+        };
+
+        $question = "An agent just completed the onboarding step '{$step->title}'. "
+            . "Step instructions: {$step->instructions} "
+            . $summary . ' '
+            . 'Using the onboarding documents, tell the agent briefly what to double-check for this step and what comes next.';
+
+        try {
+            $response = Http::timeout(120)->post(
+                rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
+                ['question' => $question]
+            );
+        } catch (\Exception $e) {
+            return response()->json(['feedback' => null]);
+        }
+
+        if (! $response->successful()) {
+            return response()->json(['feedback' => null]);
+        }
+
+        $answer = $response->json('answer');
+        $sources = $response->json('sources') ?? [];
+
+        ChatLog::create([
+            'session_id' => $sessionId,
+            'step_id' => $stepId,
+            'question' => $question,
+            'answer' => $answer,
+            'sources' => implode(', ', $sources),
+        ]);
+
+        return response()->json([
+            'feedback' => $answer,
+            'sources' => $sources,
         ]);
     }
 }
