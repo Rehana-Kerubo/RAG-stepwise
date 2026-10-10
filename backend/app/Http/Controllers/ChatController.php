@@ -18,10 +18,26 @@ class ChatController extends Controller
         ]);
 
         // Call the Flask RAG service
-        $response = Http::timeout(60)->post(
-            rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
-            ['question' => $validated['question']]
-        );
+        $step = null;
+
+    if ($validated['step_id']) {
+    $step = \App\Models\Step::find($validated['step_id']);
+    }
+
+    $response = Http::timeout(60)->post(
+        rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
+        [
+            'question' => $validated['question'],
+            'step' => $step ? [
+                'id' => $step->id,
+                'title' => $step->title,
+                'instructions' => $step->instructions,
+                'guidance_label' => $step->guidance_label,
+                'validation_rules' => $step->validation_rules,
+                'order_number' => $step->order_number,
+            ] : null,
+         ]
+    );
 
         if (! $response->successful()) {
             return response()->json([

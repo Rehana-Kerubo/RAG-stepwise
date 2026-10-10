@@ -17,11 +17,17 @@ COLLECTION_NAME = "onboarding_docs"
 OLLAMA_MODEL = "llama3.2:3b"
 TOP_K = 3   # how many chunks to retrieve per question
 
-SYSTEM_PROMPT = """You are Stepwise, an onboarding assistant for new employees.
-Answer the employee's question using ONLY the context provided below.
-If the answer is not in the context, say you don't have that information
-and suggest they check with HR or their line manager.
-Keep answers short and direct.
+SYSTEM_PROMPT = """
+You are StepWise, an AI onboarding assistant helping Sales Agents onboard merchants.
+Answer the Sales Agent's question using ONLY the context provided below.
+Use the available context to give clear, practical, and actionable guidance for the merchant onboarding process.
+If the provided context does not directly answer the question, say:
+"I don't have that information in my current onboarding knowledge base."
+Do not infer, assume, or create additional procedures from general knowledge.
+Do not combine unrelated information from different documents to answer the question.
+Only state a procedure if it is explicitly supported by the provided context.
+Keep answers concise and easy for a Sales Agent to follow.
+Do not override the StepWise onboarding workflow or its validation rules.
 """
 
 
@@ -38,13 +44,30 @@ def retrieve(question, collection, model, top_k=TOP_K):
 
 
 def build_prompt(question, chunks):
+
     context = "\n\n---\n\n".join(chunks)
-    return f"""Context:
-{context}
 
-Question: {question}
+    return f"""You are StepWise, an AI onboarding assistant for Sales Agents.
 
-Answer:"""
+    You must answer the question using ONLY the information explicitly stated in the Context below.
+
+    STRICT RULES:
+    - Do not use general knowledge.
+    - Do not guess or infer missing information.
+    - Do not create procedures that are not explicitly stated in the Context.
+    - Do not assume that a situation has a solution if the Context does not provide one.
+    - Do not combine unrelated information to create a new procedure.
+    - If the Context does not explicitly answer the question, respond exactly:
+    "I don't have that information in my current onboarding knowledge base."
+    - Only mention troubleshooting actions if they are explicitly stated in the Context.
+    - Keep the answer short and practical for a Sales Agent.
+
+    Context:
+    {context}
+
+    Question:
+    {question}
+    Answer:"""
 
 
 def ask_ollama(prompt):
