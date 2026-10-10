@@ -225,7 +225,7 @@
     // SESSION
     // ============================================================
 
-    const SESSION_ID = 2;
+    const SESSION_ID = 3;
 
     let steps = [];
     let currentStepIndex = 0;
