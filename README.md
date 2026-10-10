@@ -87,11 +87,11 @@ php artisan serve
 
 | Sprint | Focus | Status |
 |---|---|---|
-| Sprint 1 | Development environment setup, RAG pipeline, knowledge base | 🟡 In Progress |
-| Sprint 2 | Laravel backend, database migrations, RAG integration |🟡 In Progress|
-| Sprint 3 | PWA frontend - agent interface | ⬜ Pending |
+| Sprint 1 | Development environment setup, RAG pipeline, knowledge base | ✅ Complete (v1) |
+| Sprint 2 | Laravel backend, database migrations, RAG integration |✅ Complete|
+| Sprint 3 | PWA frontend - agent interface | 🟡 In Progress |
 | Sprint 4 | Manager dashboard | ⬜ Pending |
-| Sprint 5 | Alert engine, offline support | ⬜ Pending |
+| Sprint 5 | Alert engine, offline support | 🟡 In Progress|
 | Sprint 6 | Admin interface, user management | ⬜ Pending |
 | Sprint 7 | Integration testing, refinement | ⬜ Pending |
 | Sprint 8 | Final testing, documentation, deployment | ⬜ Pending |
