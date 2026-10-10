@@ -28,20 +28,48 @@ from sentence_transformers import SentenceTransformer
 DOCS_FOLDER = "sample_docs"
 DB_FOLDER = "chroma_db"
 COLLECTION_NAME = "onboarding_docs"
-CHUNK_SIZE = 500      # characters per chunk
-CHUNK_OVERLAP = 50    # overlap between chunks, keeps context from being cut mid-thought
 
-
-def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
-    """Split text into overlapping chunks by character count."""
+def chunk_text(text, max_length=500):
+    paragraphs = text.split("\n\n")
     chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end].strip())
-        start += chunk_size - overlap
-    return [c for c in chunks if c]
+    current_chunk = ""
+    for paragraph in paragraphs:
+        if len(current_chunk) + len(paragraph) + 2 <= max_length:
+            if current_chunk:
+                current_chunk += "\n\n" + paragraph
+            else:
+                current_chunk = paragraph
+        else:
+            if current_chunk:
+                chunks.append(current_chunk)
+            current_chunk = paragraph
+            # If the paragraph itself is too large, split it further
+            if len(current_chunk) > max_length:
+                oversized_chunks = split_oversized_paragraph(current_chunk, max_length)
+                chunks.extend(oversized_chunks)
+                current_chunk = ""
+    if current_chunk:
+        chunks.append(current_chunk)
+    return chunks
 
+def split_oversized_paragraph(paragraph, max_length=500):
+    """Split a single paragraph into smaller chunks if it exceeds max_length."""
+    sentences = paragraph.split(". ")
+    chunks = []
+    current_chunk = ""
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) + 2 <= max_length:
+            if current_chunk:
+                current_chunk += ". " + sentence
+            else:
+                current_chunk = sentence
+        else:
+            if current_chunk:
+                chunks.append(current_chunk)
+            current_chunk = sentence
+    if current_chunk:
+        chunks.append(current_chunk)
+    return chunks
 
 def load_documents(folder):
     """Read every .md file in the folder, return list of (filename, text)."""

@@ -22,11 +22,16 @@ COLLECTION_NAME = "onboarding_docs"
 OLLAMA_MODEL = "llama3.2:3b"
 TOP_K = 3
 
-SYSTEM_PROMPT = """You are Stepwise, an onboarding assistant for new employees.
-Answer the employee's question using ONLY the context provided below.
-If the answer is not in the context, say you don't have that information
-and suggest they check with HR or their line manager.
-Keep answers short and direct.
+SYSTEM_PROMPT = """
+You are StepWise, an AI onboarding assistant helping Sales Agents onboard merchants.
+Answer the Sales Agent's question using ONLY the context provided below.
+Use the available context to give clear, practical, and actionable guidance for the merchant onboarding process.
+If the provided context does not directly answer the question, say:
+"I don't have that information in my current onboarding knowledge base."
+Do not infer, assume, or create additional procedures from general knowledge.
+Do not combine unrelated information from different documents to answer the question.
+Only state a procedure if it is explicitly supported by the provided context.Keep answers concise and easy for a Sales Agent to follow.
+Do not override the StepWise onboarding workflow or its validation rules.
 """
 
 app = Flask(__name__)
@@ -50,14 +55,55 @@ def retrieve(question, top_k=TOP_K):
     return chunks, sources
 
 
-def build_prompt(question, chunks):
+def build_prompt(question, chunks, step=None):
+
     context = "\n\n---\n\n".join(chunks)
-    return f"""Context:
+
+    step_context = ""
+
+    if step:
+        step_context = f"""
+Current StepWise Onboarding Step:
+Step {step.get('order_number')}: {step.get('title')}
+
+Step Instructions:
+{step.get('instructions')}
+
+Guidance:
+{step.get('guidance_label')}
+
+Validation Rules:
+{step.get('validation_rules')}
+"""
+
+    return f"""You are StepWise, an AI onboarding assistant helping Sales Agents onboard merchants.
+
+The Sales Agent is currently working on the onboarding step shown below.
+
+{step_context}
+
+Answer the Sales Agent's question using ONLY the information explicitly supported by the provided knowledge-base context and the current StepWise step.
+
+STRICT RULES:
+- Use the current step to understand what the Sales Agent is trying to accomplish.
+- Use the knowledge-base context to provide detailed guidance about that task.
+- Do not use general knowledge.
+- Do not guess or infer missing information.
+- Do not create procedures that are not explicitly stated in the context.
+- Do not override the current step's instructions or validation rules.
+- Do not combine unrelated information to create a new procedure.
+- If the context does not directly answer the question, say:
+"I don't have that information in my current onboarding knowledge base."
+- Keep the answer short and practical for a Sales Agent.
+
+Knowledge Base Context:
 {context}
 
-Question: {question}
+Sales Agent's Question:
+{question}
 
 Answer:"""
+
 
 
 def ask_ollama(prompt):
@@ -80,12 +126,13 @@ def health():
 def ask():
     data = request.get_json(silent=True) or {}
     question = data.get("question", "").strip()
+    step = data.get("step")
 
     if not question:
         return jsonify({"error": "Missing 'question' in request body"}), 400
 
     chunks, sources = retrieve(question)
-    prompt = build_prompt(question, chunks)
+    prompt = build_prompt(question, chunks, step=step)
     answer = ask_ollama(prompt)
 
     return jsonify({
