@@ -9,6 +9,11 @@ class StepProgress extends Model
     protected $table = 'step_progress'; // Laravel would default to "step_progresses" otherwise
 
     protected $fillable = ['session_id', 'step_id', 'started_at', 'completed_at', 'submission_data', 'attempts'];
+    protected $casts = [
+        'submission_data' => 'array',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+    ];
 
     public function session()
     {
