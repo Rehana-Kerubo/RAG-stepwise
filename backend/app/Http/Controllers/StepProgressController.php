@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class StepProgressController extends Controller
 {
@@ -250,66 +251,42 @@ class StepProgressController extends Controller
         ]);
     }
 
-    /**
-     * Ask the RAG pipeline for guidance on a completed step.
-     * The frontend calls this AFTER a successful submit, so submit stays fast.
-     */
-    public function feedback(Request $request, $sessionId, $stepId)
+ 
+    //Short AI tips for one step. Generated once, then cached for everyone.
+
+    public function guidance(Request $request, $stepId)
     {
         $step = Step::findOrFail($stepId);
 
-        $progress = StepProgress::where('session_id', $sessionId)
-            ->where('step_id', $stepId)
-            ->whereNotNull('completed_at')
-            ->firstOrFail();
+        $tip = Cache::get('step_tip_' . $step->id);
 
-        $data = $progress->submission_data;
+        if (! $tip) {
 
-        if (!is_array($data)) {
-            $data = json_decode($data, true) ?? [];
+            $question = "You are helping a sales agent complete one onboarding step. "
+                . "Step: {$step->title}. What this step requires: {$step->instructions} "
+                . "Give 3 short, practical tips for doing this step well, one per line, no numbering. "
+                . "Only talk about this step. Do not mention other steps.";
+
+            try {
+                $response = Http::timeout(120)->post(
+                    rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
+                    ['question' => $question, 'max_tokens' => 130, 'top_k' => 2]
+                );
+            } catch (\Exception $e) {
+                return response()->json(['tip' => null]);
+            }
+
+            if (! $response->successful()) {
+                return response()->json(['tip' => null]);
+            }
+
+            $tip = trim((string) $response->json('answer'));
+
+            if ($tip !== '') {
+                Cache::forever('step_tip_' . $step->id, $tip);
+            }
         }
 
-        // Describe the submission in words. Image data and codes are never sent to the model.
-        $summary = match ($data['type'] ?? '') {
-            'document' => 'The agent uploaded a file named "' . ($data['filename'] ?? 'document') . '".',
-            'activation_code' => 'The agent entered the POS activation code.',
-            'linking_request' => 'The agent requested a ' . ($data['request_type'] ?? '') . ' number. Notes: ' . ($data['response'] ?? ''),
-            'staff_accounts' => 'The agent selected: ' . ($data['response'] ?? '') . '.',
-            default => 'The agent responded: ' . ($data['response'] ?? ''),
-        };
-
-        $question = "An agent just completed the onboarding step '{$step->title}'. "
-            . "Step instructions: {$step->instructions} "
-            . $summary . ' '
-            . 'Using the onboarding documents, tell the agent briefly what to double-check for this step and what comes next.';
-
-        try {
-            $response = Http::timeout(120)->post(
-                rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
-                ['question' => $question]
-            );
-        } catch (\Exception $e) {
-            return response()->json(['feedback' => null]);
-        }
-
-        if (! $response->successful()) {
-            return response()->json(['feedback' => null]);
-        }
-
-        $answer = $response->json('answer');
-        $sources = $response->json('sources') ?? [];
-
-        ChatLog::create([
-            'session_id' => $sessionId,
-            'step_id' => $stepId,
-            'question' => $question,
-            'answer' => $answer,
-            'sources' => implode(', ', $sources),
-        ]);
-
-        return response()->json([
-            'feedback' => $answer,
-            'sources' => $sources,
-        ]);
+        return response()->json(['tip' => $tip ?: null]);
     }
 }

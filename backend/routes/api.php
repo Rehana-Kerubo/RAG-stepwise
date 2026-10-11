@@ -13,4 +13,4 @@ Route::post('/ask', [ChatController::class, 'ask']);
 
 Route::get('/sessions/{sessionId}/steps', [StepProgressController::class, 'index']);
 Route::post('/sessions/{sessionId}/steps/{stepId}/submit', [StepProgressController::class, 'submit']);
-Route::post('/sessions/{sessionId}/steps/{stepId}/feedback', [StepProgressController::class, 'feedback']);
+Route::get('/steps/{stepId}/guidance', [StepProgressController::class, 'guidance']);

@@ -106,13 +106,19 @@ Answer:"""
 
 
 
-def ask_ollama(prompt):
+def ask_ollama(prompt, max_tokens=None):
+    options = {"temperature": 0.2}
+    if max_tokens:
+        options["num_predict"] = max_tokens
+
     response = ollama.chat(
         model=OLLAMA_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ],
+        options=options,
+        keep_alive="30m",
     )
     return response["message"]["content"]
 
@@ -128,12 +134,16 @@ def ask():
     question = data.get("question", "").strip()
     step = data.get("step")
 
+    max_tokens = data.get("max_tokens")
+    max_tokens = min(max_tokens, 400) if max_tokens else None
+    top_k = int(data.get("top_k", TOP_K))
+
     if not question:
         return jsonify({"error": "Missing 'question' in request body"}), 400
 
-    chunks, sources = retrieve(question)
+    chunks, sources = retrieve(question, top_k)
     prompt = build_prompt(question, chunks, step=step)
-    answer = ask_ollama(prompt)
+    answer = ask_ollama(prompt, max_tokens)
 
     return jsonify({
         "answer": answer,
