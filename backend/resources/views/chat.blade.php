@@ -2,227 +2,331 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>StepWise - Onboarding Assistant</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>StepWise</title>
+
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#F2F3EF">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="StepWise">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        if (window.tailwind) {
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            counter: '#F2F3EF',
+                            slip: '#FFFFFF',
+                            ink: '#17191F',
+                            muted: '#5B6070',
+                            hairline: '#D9DCE3',
+                            cobalt: { DEFAULT: '#2A3EDC', soft: '#E8EBFC', deep: '#1B2AA3' },
+                            ledger: { DEFAULT: '#0B7A52', soft: '#E4F4EC' },
+                            amber: { DEFAULT: '#F2B01E', soft: '#FFF3D1' }
+                        },
+                        fontFamily: {
+                            sans: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', 'sans-serif']
+                        }
+                    }
+                }
+            };
+        }
+    </script>
+
+    <style>
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            -webkit-tap-highlight-color: transparent;
+            font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+        }
+        button, label, select { touch-action: manipulation; }
+
+        #app { min-height: 100vh; min-height: 100dvh; }
+
+        /* Ruler segment for steps saved on the device but not yet synced */
+        .queued-seg {
+            background: repeating-linear-gradient(135deg, #F2B01E 0 4px, #FBE29A 4px 8px);
+        }
+
+        /* Bottom sheets (steps overview and chat) */
+        .sheet {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: var(--kb, 0px);
+            margin: 0 auto;
+            max-width: 480px;
+            height: 88vh;
+            height: min(88dvh, calc(var(--vvh, 100dvh) - 12px));
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            background: #FFFFFF;
+            border-radius: 24px 24px 0 0;
+            box-shadow: 0 -12px 40px rgba(23, 25, 31, 0.18);
+            transform: translateY(100%);
+            visibility: hidden;
+            transition: transform 0.26s ease, visibility 0s linear 0.26s;
+        }
+        .sheet.open {
+            transform: translateY(0);
+            visibility: visible;
+            transition: transform 0.26s ease, visibility 0s;
+        }
+        .sheet-handle { touch-action: none; cursor: grab; }
+
+        #scrim {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            background: rgba(23, 25, 31, 0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        #scrim.open { opacity: 1; pointer-events: auto; }
+
+        #toast {
+            position: fixed;
+            left: 0;
+            right: 0;
+            margin: 0 auto;
+            max-width: 480px;
+            z-index: 35;
+            padding: 0 16px;
+            bottom: calc(env(safe-area-inset-bottom) + 92px);
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        #toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .sheet, .sheet.open, #scrim, #toast { transition: none; }
+        }
+
+        button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
+            outline: 3px solid #2A3EDC;
+            outline-offset: 2px;
+        }
+    </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen p-4">
+<body class="bg-[#E4E6E1] font-sans text-ink antialiased">
 
-    <!-- Offline / sync status banner (hidden when there is nothing to report) -->
-    <div id="offline-banner" class="hidden"></div>
+<div id="app" class="relative mx-auto max-w-[480px] bg-counter sm:shadow-xl">
 
-    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- =========================================================
+         HEADER: brand, saved count, and the progress ruler
+    ========================================================== -->
+    <header
+        class="relative bg-counter px-5 pb-3"
+        style="padding-top: calc(env(safe-area-inset-top) + 14px);">
 
-        <!-- =========================================================
-             LEFT: ONBOARDING STEPS
-        ========================================================== -->
-        <div class="bg-white rounded-xl shadow-lg flex flex-col h-[85vh]">
+        <div class="flex items-center justify-between">
+            <h1 class="text-[19px] font-extrabold tracking-tight">StepWise</h1>
 
-            <div class="bg-emerald-600 text-white p-4 rounded-t-xl">
-                <h1 class="text-lg font-semibold">StepWise</h1>
-                <p class="text-sm text-emerald-100">
-                    Merchant Onboarding
-                </p>
-            </div>
-
-            <div class="p-4 border-b">
-                <div class="flex justify-between text-sm mb-2">
-                    <span class="font-medium">Progress</span>
-                    <span id="progress-text">0 of 0</span>
-                </div>
-
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                        id="progress-bar"
-                        class="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                        style="width: 0%">
-                    </div>
-                </div>
-            </div>
-
-            <div id="steps-list" class="flex-1 overflow-y-auto p-4 space-y-2">
-                <div class="text-sm text-gray-400 text-center">
-                    Loading steps...
-                </div>
-            </div>
-
+            <button
+                id="steps-open"
+                type="button"
+                class="flex h-10 items-center gap-2 rounded-xl border border-hairline bg-slip px-3 text-sm font-semibold"
+                aria-label="Show all steps">
+                <span id="progress-text">0 of 0 saved</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                </svg>
+            </button>
         </div>
 
+        <div id="ruler" class="mt-3 flex items-center gap-1" aria-hidden="true"></div>
 
-        <!-- =========================================================
-             CENTRE: CURRENT ONBOARDING STEP
-        ========================================================== -->
-        <div class="bg-white rounded-xl shadow-lg flex flex-col min-h-[85vh]">
+        <p id="step-counter" class="mt-2 text-sm font-medium text-muted">Loading...</p>
+    </header>
 
-            <div class="bg-indigo-600 text-white p-4 rounded-t-xl">
-                <p class="text-sm text-indigo-100">
-                    Current onboarding step
-                </p>
-
-                <h2 id="step-counter" class="text-lg font-semibold">
-                    Loading...
-                </h2>
-            </div>
+    <!-- Offline / sync status (hidden when there is nothing to report) -->
+    <div id="offline-banner" class="hidden" role="status"></div>
 
 
-            <div class="flex-1 p-6">
+    <!-- =========================================================
+         CURRENT STEP
+    ========================================================== -->
+    <main class="px-5 pt-4" style="padding-bottom: calc(env(safe-area-inset-bottom) + 190px);">
 
-                <!-- Step title -->
-                <div class="mb-6">
-                    <p class="text-sm text-gray-500 mb-1">
-                        StepWise Guidance
-                    </p>
+        <h2
+            id="step-title"
+            class="text-[30px] font-extrabold leading-[1.08] tracking-tight">
+            Loading step...
+        </h2>
 
-                    <h1
-                        id="step-title"
-                        class="text-2xl font-bold text-gray-800">
-                        Loading step...
-                    </h1>
-                </div>
+        <section class="mt-5">
+            <h3 class="text-[15px] font-semibold">What to do</h3>
+            <p
+                id="step-instructions"
+                class="mt-2 border-l-[3px] border-cobalt pl-3 text-[16px] leading-relaxed text-ink/80">
+                Loading instructions...
+            </p>
+        </section>
 
+        <section class="mt-7">
+            <h3 id="step-input-label" class="mb-2 text-[15px] font-semibold">Step submission</h3>
 
-                <!-- Instructions -->
-                <div class="bg-gray-50 border rounded-xl p-4 mb-6">
+            <div id="step-input-container"></div>
 
-                    <h3 class="font-semibold text-gray-800 mb-2">
-                        What to do
-                    </h3>
+            <p id="validation-hint" class="mt-2 text-sm leading-snug text-muted"></p>
+            <p id="form-error" role="alert" class="mt-2 hidden text-sm font-semibold text-red-700"></p>
+        </section>
 
-                    <p
-                        id="step-instructions"
-                        class="text-sm text-gray-600 leading-relaxed">
-                        Loading instructions...
-                    </p>
+        <section class="mt-7 rounded-2xl bg-cobalt-soft p-4">
+            <h3 class="text-[15px] font-semibold text-cobalt-deep">Tip from StepWise</h3>
 
-                </div>
+            <p
+                id="guidance-label"
+                class="mt-1 whitespace-pre-line text-[15px] leading-snug text-ink/80">
+                Guidance for the current step will appear here.
+            </p>
 
+            <button
+                id="help-button"
+                type="button"
+                class="mt-3 h-11 rounded-xl border border-cobalt/40 bg-slip px-4 text-[15px] font-semibold text-cobalt-deep">
+                Ask about this step
+            </button>
+        </section>
 
-                <!-- Submission area -->
-                <div class="mb-6">
-
-                    <label
-                        id="step-input-label"
-                        class="block text-sm font-medium text-gray-700 mb-2">
-                        Step submission
-                    </label>
-
-                    <div id="step-input-container"></div>
-
-                    <p
-                        id="validation-hint"
-                        class="text-xs text-gray-400 mt-2">
-                    </p>
-
-                </div>
-
-                <!-- AI contextual guidance -->
-                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
-
-                    <div class="flex items-start gap-3">
-
-                        <div class="text-xl">
-                            💡
-                        </div>
-
-                        <div>
-                            <h3 class="font-semibold text-indigo-900">
-                                AI Guidance
-                            </h3>
-
-                            <p
-                                id="guidance-label"
-                                class="text-sm text-indigo-700 mt-1">
-                                Guidance for the current step will appear here.
-                            </p>
-                        </div>
-
-                    </div>
-
-                </div>
+    </main>
 
 
-                <!-- Buttons -->
-                <div class="flex justify-between items-center">
+    <!-- =========================================================
+         BOTTOM BAR (within thumb reach)
+    ========================================================== -->
+    <div
+        class="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[480px] border-t border-hairline bg-counter px-4 pt-3"
+        style="padding-bottom: calc(env(safe-area-inset-bottom) + 12px);">
 
-                    <button
-                        id="help-button"
-                        type="button"
-                        class="border border-indigo-300 text-indigo-600 px-4 py-2 rounded-lg text-sm hover:bg-indigo-50">
-                        Need more help?
-                    </button>
+        <div class="flex gap-3">
 
-                    <button
-                        id="next-button"
-                        type="button"
-                        class="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60">
-                        NEXT
-                    </button>
+            <button
+                id="chat-open"
+                type="button"
+                class="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-hairline bg-slip"
+                aria-label="Ask StepWise">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+                </svg>
+                <span id="chat-dot"
+                      class="absolute right-2 top-2 hidden h-3 w-3 rounded-full bg-cobalt ring-2 ring-slip"></span>
+            </button>
 
-                </div>
-
-            </div>
+            <button
+                id="next-button"
+                type="button"
+                class="h-14 flex-1 rounded-xl bg-cobalt text-[17px] font-bold text-white disabled:bg-hairline disabled:text-muted">
+                Save and continue
+            </button>
 
         </div>
-
-
-        <!-- =========================================================
-             RIGHT: AI CHATBOT
-        ========================================================== -->
-        <div
-            id="chat-panel"
-            class="bg-white rounded-xl shadow-lg flex flex-col h-[85vh]">
-
-            <div class="bg-gray-800 text-white p-4 rounded-t-xl">
-
-                <h1 class="text-lg font-semibold">
-                    StepWise AI
-                </h1>
-
-                <p class="text-sm text-gray-300">
-                    Ask for detailed onboarding help
-                </p>
-
-            </div>
-
-
-            <div
-                id="chat-window"
-                class="flex-1 overflow-y-auto p-4 space-y-3">
-
-                <div class="text-sm text-gray-400 text-center">
-                    Ask StepWise if you need more detailed guidance.
-                </div>
-
-            </div>
-
-
-            <form
-                id="chat-form"
-                class="p-4 border-t flex gap-2">
-
-                <input
-                    id="question-input"
-                    type="text"
-                    placeholder="Ask about this step..."
-                    class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    autocomplete="off"
-                />
-
-                <button
-                    type="submit"
-                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
-                    Send
-                </button>
-
-            </form>
-
-        </div>
-
     </div>
+
+    <!-- Short messages: saved, feedback ready -->
+    <div id="toast" role="status">
+        <div class="flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-3 text-sm text-white shadow-lg">
+            <span id="toast-text"></span>
+            <button id="toast-action" type="button" class="hidden shrink-0 font-bold text-amber">Read</button>
+        </div>
+    </div>
+
+    <div id="scrim"></div>
+
+
+    <!-- =========================================================
+         SHEET: ALL STEPS
+    ========================================================== -->
+    <section
+        id="steps-sheet"
+        class="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="steps-sheet-title">
+
+        <div class="sheet-handle">
+            <div class="mx-auto mt-3 h-1.5 w-10 rounded-full bg-hairline"></div>
+
+            <div class="flex items-center justify-between px-5 pb-3 pt-3">
+                <h2 id="steps-sheet-title" class="text-xl font-extrabold tracking-tight">All steps</h2>
+                <button data-close type="button"
+                        class="h-10 rounded-xl px-3 text-sm font-semibold text-cobalt-deep">Close</button>
+            </div>
+        </div>
+
+        <div id="steps-list"
+             class="flex-1 space-y-2 overflow-y-auto px-5"
+             style="padding-bottom: calc(env(safe-area-inset-bottom) + 20px);">
+            <div class="text-center text-sm text-muted">Loading steps...</div>
+        </div>
+    </section>
+
+
+    <!-- =========================================================
+         SHEET: ASK STEPWISE (AI chat)
+    ========================================================== -->
+    <section
+        id="chat-panel"
+        class="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chat-title">
+
+        <div class="sheet-handle">
+            <div class="mx-auto mt-3 h-1.5 w-10 rounded-full bg-hairline"></div>
+
+            <div class="flex items-center justify-between px-5 pb-3 pt-3">
+                <h2 id="chat-title" class="text-xl font-extrabold tracking-tight">Ask StepWise</h2>
+                <button data-close type="button"
+                        class="h-10 rounded-xl px-3 text-sm font-semibold text-cobalt-deep">Close</button>
+            </div>
+        </div>
+
+        <div id="chat-window" class="flex-1 space-y-3 overflow-y-auto px-4 py-2">
+            <p id="chat-empty" class="px-2 text-center text-sm leading-snug text-muted">
+                Ask anything about onboarding this merchant. Answers can take up to 30 seconds.
+            </p>
+        </div>
+
+        <form
+            id="chat-form"
+            class="flex gap-2 border-t border-hairline p-3"
+            style="padding-bottom: calc(env(safe-area-inset-bottom) + 12px);">
+
+            <input
+                id="question-input"
+                type="text"
+                placeholder="Ask about this step"
+                class="h-12 min-w-0 flex-1 rounded-xl border border-hairline bg-slip px-4 text-[16px]"
+                autocomplete="off"
+            />
+
+            <button
+                type="submit"
+                class="h-12 rounded-xl bg-cobalt px-5 text-[16px] font-bold text-white">
+                Send
+            </button>
+
+        </form>
+    </section>
+
+</div>
 
 
 <script>
@@ -246,7 +350,7 @@
     const stepsList = document.getElementById('steps-list');
 
     const progressText = document.getElementById('progress-text');
-    const progressBar = document.getElementById('progress-bar');
+    const ruler = document.getElementById('ruler');
 
     const stepCounter = document.getElementById('step-counter');
     const stepTitle = document.getElementById('step-title');
@@ -256,6 +360,7 @@
     const stepInputLabel = document.getElementById('step-input-label');
     let stepInput = null;
     const validationHint = document.getElementById('validation-hint');
+    const formError = document.getElementById('form-error');
 
     const guidanceLabel = document.getElementById('guidance-label');
 
@@ -263,6 +368,196 @@
     const helpButton = document.getElementById('help-button');
 
     const offlineBanner = document.getElementById('offline-banner');
+
+    const stepsOpen = document.getElementById('steps-open');
+    const chatOpen = document.getElementById('chat-open');
+    const chatDot = document.getElementById('chat-dot');
+    const stepsSheet = document.getElementById('steps-sheet');
+    const chatSheet = document.getElementById('chat-panel');
+    const scrim = document.getElementById('scrim');
+
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    const toastAction = document.getElementById('toast-action');
+
+    let previewUrl = null;
+
+
+    // ============================================================
+    // SHEETS AND TOASTS
+    // ============================================================
+
+    let activeSheet = null;
+    let lastFocused = null;
+    let toastTimer = null;
+
+    function openSheet(sheet) {
+
+        if (activeSheet) closeSheet();
+
+        lastFocused = document.activeElement;
+        activeSheet = sheet;
+
+        sheet.classList.add('open');
+        scrim.classList.add('open');
+        document.body.style.overflow = 'hidden';
+
+        if (sheet === chatSheet) {
+            chatDot.classList.add('hidden');
+            hideToast();
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        const closeButton = sheet.querySelector('[data-close]');
+        if (closeButton) closeButton.focus();
+
+    }
+
+    function closeSheet() {
+
+        if (!activeSheet) return;
+
+        activeSheet.classList.remove('open');
+        scrim.classList.remove('open');
+        document.body.style.overflow = '';
+        activeSheet = null;
+
+        if (lastFocused && lastFocused.focus) lastFocused.focus();
+
+    }
+
+    scrim.addEventListener('click', closeSheet);
+
+    document.querySelectorAll('[data-close]').forEach(button => {
+        button.addEventListener('click', closeSheet);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeSheet();
+    });
+
+    stepsOpen.addEventListener('click', () => openSheet(stepsSheet));
+    chatOpen.addEventListener('click', () => openSheet(chatSheet));
+
+    // Keep the sheets above the on-screen keyboard. Phones shrink the *visible*
+    // area when the keyboard opens, so the sheets follow that area.
+    function fitToKeyboard() {
+
+        const vv = window.visualViewport;
+
+        if (!vv) return;
+
+        const keyboard = vv.scale > 1.01
+            ? 0
+            : Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+
+        const root = document.documentElement.style;
+
+        root.setProperty('--vvh', vv.height + 'px');
+        root.setProperty('--kb', keyboard + 'px');
+
+    }
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', fitToKeyboard);
+        window.visualViewport.addEventListener('scroll', fitToKeyboard);
+        fitToKeyboard();
+    }
+
+    // Swipe down on the grip or title bar to close a sheet
+    function enableSwipeToClose(sheet) {
+
+        const handle = sheet.querySelector('.sheet-handle');
+
+        let startY = null;
+        let distance = 0;
+
+        handle.addEventListener('pointerdown', (event) => {
+
+            if (event.target.closest('button')) return; // let the Close button work normally
+
+            startY = event.clientY;
+            distance = 0;
+
+            sheet.style.transition = 'none';
+            handle.setPointerCapture(event.pointerId);
+
+        });
+
+        handle.addEventListener('pointermove', (event) => {
+
+            if (startY === null) return;
+
+            distance = Math.max(0, event.clientY - startY);
+
+            sheet.style.transform = `translateY(${distance}px)`;
+
+        });
+
+        function finishDrag() {
+
+            if (startY === null) return;
+
+            const shouldClose = distance > 110;
+
+            startY = null;
+            distance = 0;
+
+            sheet.style.transition = '';
+            sheet.style.transform = '';
+
+            if (shouldClose) closeSheet();
+
+        }
+
+        handle.addEventListener('pointerup', finishDrag);
+        handle.addEventListener('pointercancel', finishDrag);
+
+    }
+
+    enableSwipeToClose(stepsSheet);
+    enableSwipeToClose(chatSheet);
+
+    function showToast(message, actionLabel, onAction) {
+
+        toastText.textContent = message;
+
+        if (actionLabel) {
+            toastAction.textContent = actionLabel;
+            toastAction.classList.remove('hidden');
+            toastAction.onclick = () => {
+                hideToast();
+                onAction();
+            };
+        } else {
+            toastAction.classList.add('hidden');
+            toastAction.onclick = null;
+        }
+
+        toast.classList.add('show');
+
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(hideToast, 6000);
+
+    }
+
+    function hideToast() {
+        toast.classList.remove('show');
+    }
+
+    function showError(message) {
+        formError.textContent = message;
+        formError.classList.remove('hidden');
+    }
+
+    function clearError() {
+        formError.textContent = '';
+        formError.classList.add('hidden');
+    }
+
+    // Typing or choosing something clears an old error message
+    stepInputContainer.addEventListener('input', clearError);
+    stepInputContainer.addEventListener('change', clearError);
 
 
     // ============================================================
@@ -341,27 +636,26 @@
         const queue = await getQueue();
         const stuck = queue.find(item => item.error);
 
-        const base = 'max-w-6xl mx-auto mb-4 rounded-lg px-4 py-2 text-sm text-white ';
+        const base = 'px-5 py-2.5 text-sm font-medium leading-snug ';
 
         if (stuck) {
 
-            offlineBanner.className = base + 'bg-red-600';
+            offlineBanner.className = base + 'bg-red-100 text-red-800';
             offlineBanner.textContent =
                 `Sync paused on "${stuck.title}": ${stuck.error}`;
 
         } else if (!navigator.onLine) {
 
-            offlineBanner.className = base + 'bg-amber-500';
+            offlineBanner.className = base + 'border-y border-amber/50 bg-amber-soft text-ink';
             offlineBanner.textContent =
-                "You're offline. You can keep working through the steps; " +
-                "submissions are saved on this device and will sync when you reconnect." +
-                (queue.length ? ` (${queue.length} waiting)` : '');
+                "You're offline. Steps you finish are saved on this device and sync later." +
+                (queue.length ? ` ${queue.length} waiting.` : '');
 
         } else if (queue.length) {
 
-            offlineBanner.className = base + 'bg-amber-500';
+            offlineBanner.className = base + 'border-y border-amber/50 bg-amber-soft text-ink';
             offlineBanner.textContent =
-                `Syncing ${queue.length} saved submission(s)...`;
+                `Back online. Syncing ${queue.length} saved step(s)...`;
 
         } else {
 
@@ -475,10 +769,13 @@
         } catch (error) {
 
             stepsList.innerHTML = `
-                <div class="text-sm text-red-500 text-center">
+                <div class="text-center text-sm font-medium text-red-700">
                     ${error.message}
                 </div>
             `;
+
+            stepTitle.textContent = 'Steps could not load';
+            stepInstructions.textContent = error.message;
 
         }
 
@@ -486,10 +783,47 @@
 
 
     // ============================================================
-    // RENDER LEFT STEP LIST
+    // PROGRESS RULER AND STEP LIST
     // ============================================================
 
+    function renderProgress() {
+
+        const saved = steps.filter(step => step.completed || step.queued).length;
+
+        progressText.textContent = `${saved} of ${steps.length} saved`;
+
+        ruler.innerHTML = '';
+
+        steps.forEach((step, index) => {
+
+            const segment = document.createElement('span');
+
+            const isCurrent = index === currentStepIndex && !finishedShown;
+
+            let classes = 'h-2.5 rounded-[3px] ';
+
+            if (step.completed) {
+                classes += 'bg-ledger';
+            } else if (step.queued) {
+                classes += 'queued-seg';
+            } else if (isCurrent) {
+                classes += 'bg-cobalt';
+            } else {
+                classes += 'bg-hairline';
+            }
+
+            segment.className = classes;
+            segment.style.flex = isCurrent ? '2.4' : '1';
+
+            ruler.appendChild(segment);
+
+        });
+
+    }
+
     function renderStepsList() {
+
+        renderProgress();
 
         stepsList.innerHTML = '';
 
@@ -497,62 +831,45 @@
 
             const item = document.createElement('div');
 
-            const isCurrent = index === currentStepIndex;
+            const isCurrent = index === currentStepIndex && !finishedShown;
 
-            let classes =
-                'p-3 rounded-lg border text-sm transition ';
+            let tone = 'border-hairline bg-slip';
+            let badge = 'border border-hairline bg-slip text-muted';
+            let marker = step.order_number;
+            let status = step.guidance_label || '';
 
             if (step.completed) {
 
-                classes +=
-                    'bg-emerald-50 border-emerald-200 text-gray-500';
+                tone = 'border-ledger/30 bg-ledger-soft';
+                badge = 'bg-ledger text-white';
+                marker = '✓';
+                status = 'Saved';
 
             } else if (step.queued) {
 
-                classes +=
-                    'bg-amber-50 border-amber-200 text-amber-800';
+                tone = 'border-amber/60 bg-amber-soft';
+                badge = 'bg-amber text-ink';
+                marker = '⏳';
+                status = 'Saved on this device, waiting to sync';
 
             } else if (isCurrent) {
 
-                classes +=
-                    'bg-indigo-50 border-indigo-300 text-indigo-800';
-
-            } else {
-
-                classes +=
-                    'bg-gray-50 border-gray-200 text-gray-500';
+                tone = 'border-cobalt bg-cobalt-soft';
+                badge = 'bg-cobalt text-white';
+                status = 'You are here';
 
             }
 
-            item.className = classes;
-
-            const marker =
-                step.completed ? '✓' :
-                step.queued ? '⏳' :
-                step.order_number;
+            item.className = `flex items-start gap-3 rounded-xl border p-3 ${tone}`;
 
             item.innerHTML = `
-                <div class="flex items-start gap-3">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${badge}">
+                    ${marker}
+                </div>
 
-                    <div class="mt-0.5 font-semibold">
-                        ${marker}
-                    </div>
-
-                    <div>
-
-                        <div class="font-medium
-                            ${step.completed ? 'line-through' : ''}">
-                            ${step.title}
-                        </div>
-
-                        <div class="text-xs mt-1 opacity-75">
-                            ${step.queued
-                                ? 'Saved on this device, waiting to sync'
-                                : (step.guidance_label || '')}
-                        </div>
-
-                    </div>
-
+                <div class="min-w-0">
+                    <div class="text-[15px] font-semibold leading-snug">${step.title}</div>
+                    <div class="mt-0.5 text-sm leading-snug text-muted">${status}</div>
                 </div>
             `;
 
@@ -566,26 +883,22 @@
     // ============================================================
     // RENDER CURRENT STEP
     // ============================================================
+
     function renderStepInput(step) {
     const order = Number(step.order_number);
     let html = '';
 
-    const fileClasses = `
-        block w-full text-sm text-gray-600
-        border border-gray-300 rounded-xl px-3 py-3
-        file:mr-3 file:rounded-lg file:border-0 file:px-3
-        file:py-2 file:bg-indigo-50 file:text-indigo-700
-    `;
+    const selectClasses =
+        'h-14 w-full rounded-xl border border-hairline bg-slip px-4 text-[16px]';
 
     const checkboxClasses =
-        'h-5 w-5 rounded border-gray-300 text-indigo-600';
+        'mt-0.5 h-6 w-6 shrink-0 accent-[#0B7A52]';
 
     function confirmation(label) {
         return `
-            <label class="flex items-start gap-3 border border-gray-200 rounded-xl p-4">
-                <input type="checkbox" id="step-input"
-                    class="${checkboxClasses} mt-1">
-                <span class="text-sm text-gray-700">${label}</span>
+            <label class="flex min-h-[64px] cursor-pointer items-start gap-3 rounded-2xl border border-hairline bg-slip p-4 has-[:checked]:border-ledger has-[:checked]:bg-ledger-soft">
+                <input type="checkbox" id="step-input" class="${checkboxClasses}">
+                <span class="text-[16px] leading-snug">${label}</span>
             </label>
         `;
     }
@@ -594,19 +907,19 @@
     if (order >= 1 && order <= 3) {
         const configs = {
             1: {
-                label: 'Customer ID / Passport',
+                label: 'Customer ID or passport',
                 description: 'Capture a clear image of the customer’s national ID or passport.',
                 capture: 'environment',
                 accept: 'image/*'
             },
             2: {
-                label: 'Customer Photo',
+                label: 'Customer photo',
                 description: 'Take a clear passport-size photo of the customer.',
                 capture: 'user',
                 accept: 'image/*'
             },
             3: {
-                label: 'Proof of Business Location',
+                label: 'Proof of business location',
                 description: 'Capture the business permit or utility bill showing the business location.',
                 capture: 'environment',
                 accept: 'image/*'
@@ -617,19 +930,33 @@
         stepInputLabel.textContent = config.label;
 
         html = `
-            <p class="text-sm text-gray-500 mb-3">
+            <p class="mb-3 text-[15px] leading-snug text-muted">
                 ${config.description}
             </p>
-            <input type="file" id="step-input"
-                accept="${config.accept}"
-                capture="${config.capture}"
-                class="${fileClasses}">
+
+            <label class="relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-hairline bg-slip text-center focus-within:border-cobalt">
+                <input type="file" id="step-input"
+                    accept="${config.accept}"
+                    capture="${config.capture}"
+                    class="sr-only">
+
+                <img id="capture-preview" alt="Preview of the selected photo"
+                    class="absolute inset-0 hidden h-full w-full object-cover">
+
+                <span id="capture-prompt" class="px-6 text-[17px] font-bold">Take photo</span>
+                <span id="capture-sub" class="mt-1 px-6 text-sm text-muted">Opens your camera</span>
+
+                <span id="capture-retake"
+                    class="absolute bottom-3 hidden rounded-full bg-ink/80 px-4 py-1.5 text-sm font-semibold text-white">
+                    Tap to retake
+                </span>
+            </label>
         `;
     }
 
     // Step 4: Review and submit KYC documents
     else if (order === 4) {
-        stepInputLabel.textContent = 'KYC Submission';
+        stepInputLabel.textContent = 'KYC submission';
         html = confirmation(
             'I have reviewed the required KYC documents and submitted them for verification.'
         );
@@ -637,7 +964,7 @@
 
     // Step 5: Power on POS
     else if (order === 5) {
-        stepInputLabel.textContent = 'POS Device';
+        stepInputLabel.textContent = 'POS device';
         html = confirmation(
             'I have powered on the POS device and confirmed that it starts successfully.'
         );
@@ -645,7 +972,7 @@
 
     // Step 6: Connect POS
     else if (order === 6) {
-        stepInputLabel.textContent = 'Network Connection';
+        stepInputLabel.textContent = 'Network connection';
         html = confirmation(
             'I have connected the POS device to Wi-Fi or mobile data and confirmed connectivity.'
         );
@@ -653,18 +980,20 @@
 
     // Step 7: Activation code
     else if (order === 7) {
-        stepInputLabel.textContent = 'POS Activation Code';
+        stepInputLabel.textContent = 'POS activation code';
         html = `
             <input type="text" id="step-input"
                 placeholder="Enter activation code"
                 autocomplete="off"
-                class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                autocorrect="off"
+                spellcheck="false"
+                class="h-14 w-full rounded-xl border border-hairline bg-slip px-4 text-[18px] tracking-wide">
         `;
     }
 
     // Step 8: Test transaction
     else if (order === 8) {
-        stepInputLabel.textContent = 'Test Transaction';
+        stepInputLabel.textContent = 'Test transaction';
         html = confirmation(
             'I performed the KES 1 test transaction and confirmed it appeared on the merchant dashboard within 2 minutes.'
         );
@@ -672,13 +1001,12 @@
 
     // Step 9: Till or Paybill request
     else if (order === 9) {
-        stepInputLabel.textContent = 'Till / Paybill Request';
+        stepInputLabel.textContent = 'Till or Paybill request';
         html = `
-            <label for="request-type" class="block text-sm text-gray-600 mb-2">
+            <label for="request-type" class="mb-2 block text-[15px] text-muted">
                 Request type
             </label>
-            <select id="request-type"
-                class="w-full border border-gray-300 rounded-xl px-4 py-3 mb-4 text-sm">
+            <select id="request-type" class="${selectClasses} mb-4">
                 <option value="">Choose request type</option>
                 <option value="Till">Till</option>
                 <option value="Paybill">Paybill</option>
@@ -691,7 +1019,7 @@
 
     // Step 10: Confirmation
     else if (order === 10) {
-        stepInputLabel.textContent = 'Activation Confirmation';
+        stepInputLabel.textContent = 'Activation confirmation';
         html = confirmation(
             'I have confirmed that the merchant received the SMS confirming Till or Paybill activation.'
         );
@@ -699,7 +1027,7 @@
 
     // Step 11: First transaction
     else if (order === 11) {
-        stepInputLabel.textContent = 'First Transaction';
+        stepInputLabel.textContent = 'First transaction';
         html = confirmation(
             'I guided the merchant through a transaction and confirmed it completed successfully.'
         );
@@ -707,7 +1035,7 @@
 
     // Step 12: Transaction history
     else if (order === 12) {
-        stepInputLabel.textContent = 'Transaction History';
+        stepInputLabel.textContent = 'Transaction history';
         html = confirmation(
             'I showed the merchant how to view their balance and transaction history.'
         );
@@ -715,13 +1043,12 @@
 
     // Step 13: Staff accounts
     else if (order === 13) {
-        stepInputLabel.textContent = 'Staff Account Setup';
+        stepInputLabel.textContent = 'Staff account setup';
         html = `
-            <p class="text-sm text-gray-500 mb-3">
+            <p class="mb-3 text-[15px] leading-snug text-muted">
                 Does the merchant have employees who need individual accounts?
             </p>
-            <select id="step-input"
-                class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm">
+            <select id="step-input" class="${selectClasses}">
                 <option value="">Choose an option</option>
                 <option value="setup_required">Yes — staff accounts have been set up</option>
                 <option value="not_applicable">No additional staff accounts are needed</option>
@@ -734,20 +1061,46 @@
         html = `
             <textarea id="step-input" rows="3"
                 placeholder="Enter your response"
-                class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm"></textarea>
+                class="w-full rounded-xl border border-hairline bg-slip px-4 py-3 text-[16px]"></textarea>
         `;
     }
 
     stepInputContainer.innerHTML = html;
     stepInput = stepInputContainer.querySelector('#step-input');
+
+    // Show a preview of the captured photo
+    if (order >= 1 && order <= 3 && stepInput) {
+
+        stepInput.addEventListener('change', () => {
+
+            const file = stepInput.files?.[0];
+
+            if (!file) return;
+
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+            previewUrl = URL.createObjectURL(file);
+
+            const preview = stepInputContainer.querySelector('#capture-preview');
+
+            preview.src = previewUrl;
+            preview.classList.remove('hidden');
+
+            stepInputContainer.querySelector('#capture-prompt').classList.add('hidden');
+            stepInputContainer.querySelector('#capture-sub').classList.add('hidden');
+            stepInputContainer.querySelector('#capture-retake').classList.remove('hidden');
+
+        });
+
+    }
 }
 
     function updateNextLabel() {
 
         nextButton.textContent =
             currentStepIndex === steps.length - 1
-                ? 'COMPLETE ONBOARDING'
-                : 'NEXT';
+                ? 'Finish onboarding'
+                : 'Save and continue';
 
     }
 
@@ -759,14 +1112,12 @@
 
         finishedShown = false;
         nextButton.disabled = false;
+        clearError();
 
 
         const totalSteps = steps.length;
 
         const currentNumber = currentStepIndex + 1;
-
-        const percentage =
-            (currentNumber / totalSteps) * 100;
 
 
         // Header
@@ -782,10 +1133,8 @@
             step.instructions || 'Follow the instructions for this step.';
 
 
-        // Guidance
-        guidanceLabel.textContent =
-            step.guidance_label ||
-            'Follow the instructions carefully before continuing.';
+        // Guidance: the step's own label first, then AI tips for this step
+        showTip(step);
 
 
         // Validation information
@@ -793,14 +1142,6 @@
             step.validation_rules
                 ? `Requirement: ${step.validation_rules}`
                 : '';
-
-
-        // Progress
-        progressText.textContent =
-            `${currentNumber} of ${totalSteps}`;
-
-        progressBar.style.width =
-            `${percentage}%`;
 
 
         // render the input field for the current step
@@ -811,6 +1152,9 @@
 
 
         renderStepsList();
+
+
+        window.scrollTo(0, 0);
 
     }
 
@@ -825,6 +1169,7 @@
         const pending = steps.filter(step => step.queued).length;
 
         finishedShown = true;
+        clearError();
 
         if (pending) {
 
@@ -834,27 +1179,25 @@
                 `${pending} step(s) are saved on this device and will be sent ` +
                 'automatically when you reconnect.';
             guidanceLabel.textContent =
-                'Keep this app open or come back later; nothing will be lost.';
-            nextButton.textContent = 'WAITING TO SYNC';
+                'Keep this app open or come back later. Nothing will be lost.';
+            nextButton.textContent = 'Waiting to sync';
 
         } else {
 
-            stepCounter.textContent = 'Onboarding Complete';
-            stepTitle.textContent = 'Merchant onboarding completed';
+            stepCounter.textContent = 'Onboarding complete';
+            stepTitle.textContent = 'Merchant onboarding complete';
             stepInstructions.textContent =
                 'You have reached the end of the onboarding workflow.';
             guidanceLabel.textContent =
                 'All onboarding steps have been submitted.';
-            nextButton.textContent = 'COMPLETED';
+            nextButton.textContent = 'Onboarding complete';
 
         }
 
         validationHint.textContent = '';
         stepInputContainer.innerHTML = '';
+        stepInputLabel.textContent = 'Submission';
         stepInput = null;
-
-        progressText.textContent = `${steps.length} of ${steps.length}`;
-        progressBar.style.width = '100%';
 
         nextButton.disabled = true;
 
@@ -907,6 +1250,8 @@
 
     if (!step || !stepInput) return;
 
+    clearError();
+
     const order = Number(step.order_number);
     const payload = {};
 
@@ -915,17 +1260,17 @@
         const file = stepInput.files?.[0];
 
         if (!file) {
-            alert('Please capture or select the required image.');
+            showError('Take or choose the required photo first.');
             return;
         }
 
         if (!file.type.startsWith('image/')) {
-            alert('Please select a valid image file.');
+            showError('That file is not an image. Choose a photo instead.');
             return;
         }
 
         if (file.size > 5 * 1024 * 1024) {
-            alert('Please select an image smaller than 5 MB.');
+            showError('That photo is larger than 5 MB. Retake it at a lower quality.');
             return;
         }
 
@@ -942,7 +1287,7 @@
                 reader.readAsDataURL(file);
             });
         } catch (error) {
-            alert(error.message);
+            showError(error.message);
             return;
         }
     }
@@ -952,7 +1297,7 @@
         const code = stepInput.value.trim();
 
         if (!code) {
-            alert('Please enter the POS activation code.');
+            showError('Enter the POS activation code.');
             return;
         }
 
@@ -969,12 +1314,12 @@
             stepInputContainer.querySelector('input[type="checkbox"]')?.checked;
 
         if (!requestType) {
-            alert('Please choose Till or Paybill.');
+            showError('Choose Till or Paybill.');
             return;
         }
 
         if (!confirmed) {
-            alert('Please confirm that you submitted the request.');
+            showError('Tick the box to confirm you submitted the request.');
             return;
         }
 
@@ -988,7 +1333,7 @@
         const choice = stepInput.value;
 
         if (!choice) {
-            alert('Please select an option for staff account setup.');
+            showError('Choose an option for staff account setup.');
             return;
         }
 
@@ -999,7 +1344,7 @@
     // Steps 4–6 and 8, 10–12: Confirmation
     else {
         if (!stepInput.checked) {
-            alert('Please confirm that you completed this action.');
+            showError('Tick the box to confirm you completed this action.');
             return;
         }
 
@@ -1027,11 +1372,12 @@
             try {
                 await queueSubmission(step, payload);
             } catch (storageError) {
-                alert('Could not save this step on the device. Please reconnect and try again.');
+                showError('Could not save this step on the device. Reconnect and try again.');
                 return;
             }
 
             updateBanner();
+            showToast('Saved on this device. It will sync when you reconnect.');
             goToNextStep();
             return;
         }
@@ -1048,9 +1394,6 @@
         step.queued = false;
 
         saveStepsCache();
-        
-        // Ask the AI for guidance on this step in the background
-        requestFeedback(step);
 
         if (data.onboarding_complete) {
             showFinishedScreen();
@@ -1060,7 +1403,7 @@
         goToNextStep();
 
     } catch (error) {
-        alert(error.message);
+        showError(error.message);
     } finally {
         if (!finishedShown) {
             nextButton.disabled = false;
@@ -1128,11 +1471,6 @@
         await loadSteps();
         await updateBanner();
 
-        // Feedback for synced steps, one at a time (the model is slow)
-        for (const syncedStep of synced) {
-            await requestFeedback(syncedStep);
-        }
-
     }
 
     window.addEventListener('online', async () => {
@@ -1147,42 +1485,117 @@
 
 
     // ============================================================
-    // AI FEEDBACK AFTER A STEP IS SUBMITTED
+    // AI TIPS FOR THE CURRENT STEP
+    // The tip depends only on the step (not on what the agent entered), so the
+    // server generates it once and every device keeps a copy for offline use.
+    // Bump TIP_PREFIX to force devices to fetch fresh tips.
     // ============================================================
 
-    async function requestFeedback(step) {
+    const TIP_PREFIX = 'stepwise_tip_v1_';
 
-        if (!navigator.onLine) return;
+    let prefetching = false;
 
-        const bubble = addMessage(
-            `Checking your "${step.title}" submission...`,
-            'bot'
-        );
+    function cachedTip(stepId) {
+
+        try {
+            return localStorage.getItem(TIP_PREFIX + stepId);
+        } catch (error) {
+            return null;
+        }
+
+    }
+
+    async function fetchTip(step) {
+
+        const cached = cachedTip(step.id);
+
+        if (cached) return cached;
+
+        if (!navigator.onLine) return null;
 
         try {
 
             const response = await fetch(
-                `/api/sessions/${SESSION_ID}/steps/${step.id}/feedback`,
-                {
-                    method: 'POST',
-                    headers: { 'Accept': 'application/json' }
-                }
+                `/api/steps/${step.id}/guidance`,
+                { headers: { 'Accept': 'application/json' } }
             );
+
+            if (!response.ok) return null;
 
             const data = await response.json();
 
-            bubble.textContent = data.feedback
-                ? `Feedback on "${step.title}": ${data.feedback}`
-                : `"${step.title}" was saved. No AI feedback is available right now.`;
+            if (data.tip) {
+                try {
+                    localStorage.setItem(TIP_PREFIX + step.id, data.tip);
+                } catch (error) {}
+            }
+
+            return data.tip || null;
 
         } catch (error) {
 
-            bubble.textContent =
-                `"${step.title}" was saved. Feedback is unavailable because the AI service could not be reached.`;
+            return null;
 
         }
 
-        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    // Warm up tips for the next couple of steps so they are ready when needed
+    async function prefetchTips(fromStep) {
+
+        if (prefetching || !navigator.onLine) return;
+
+        prefetching = true;
+
+        try {
+
+            const upcoming = steps
+                .filter(step =>
+                    Number(step.order_number) > Number(fromStep.order_number) &&
+                    !step.completed &&
+                    !step.queued
+                )
+                .slice(0, 2);
+
+            for (const step of upcoming) {
+                await fetchTip(step);
+            }
+
+        } finally {
+
+            prefetching = false;
+
+        }
+
+    }
+
+    async function showTip(step) {
+
+        const fallback =
+            step.guidance_label ||
+            'Follow the instructions carefully before continuing.';
+
+        const cached = cachedTip(step.id);
+
+        if (cached) {
+            guidanceLabel.textContent = cached;
+            prefetchTips(step);
+            return;
+        }
+
+        // Show the step's own label straight away, then upgrade it to the AI tip
+        guidanceLabel.textContent = navigator.onLine
+            ? fallback + '\n\nPreparing tips for this step...'
+            : fallback;
+
+        const tip = await fetchTip(step);
+
+        // Only update the screen if the agent is still on this step
+        if (steps[currentStepIndex]?.id === step.id) {
+            guidanceLabel.textContent = tip || fallback;
+        }
+
+        prefetchTips(step);
 
     }
 
@@ -1203,9 +1616,11 @@
             `Please explain how to complete this step and what I should check before submitting it.`;
 
 
+        openSheet(chatSheet);
+
         input.value = question;
 
-        input.focus();
+        setTimeout(() => input.focus(), 80);
 
     });
 
@@ -1223,16 +1638,21 @@
     const chatWindow =
         document.getElementById('chat-window');
 
+    const chatEmpty =
+        document.getElementById('chat-empty');
+
 
     function addMessage(text, sender) {
+
+        if (chatEmpty) chatEmpty.classList.add('hidden');
 
         const bubble =
             document.createElement('div');
 
         bubble.className =
             sender === 'user'
-                ? 'ml-auto bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm max-w-[80%]'
-                : 'mr-auto bg-gray-100 text-gray-800 rounded-lg px-3 py-2 text-sm max-w-[80%]';
+                ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-cobalt px-4 py-2.5 text-[15px] leading-snug text-white'
+                : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-counter px-4 py-2.5 text-[15px] leading-snug text-ink';
 
 
         bubble.textContent = text;
@@ -1274,7 +1694,7 @@
 
             addMessage(
                 "You're offline. StepWise's AI answers need a connection, " +
-                "but you can keep completing steps; they will sync when you reconnect.",
+                "but you can keep completing steps. They will sync when you reconnect.",
                 'bot'
             );
 
@@ -1302,7 +1722,7 @@
 
 
         loadingBubble.innerHTML =
-            '<div class="mr-auto bg-gray-100 text-gray-400 rounded-lg px-3 py-2 text-sm italic">StepWise is thinking...</div>';
+            '<div class="mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-counter px-4 py-2.5 text-[15px] italic text-muted">StepWise is thinking...</div>';
 
 
         chatWindow.appendChild(
