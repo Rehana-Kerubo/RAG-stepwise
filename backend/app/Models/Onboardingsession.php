@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class OnboardingSession extends Model
 {
-    protected $fillable = ['agent_id', 'started_at', 'status', 'completed_at'];
+    protected $fillable = ['agent_id', 'started_at', 'status', 'completed_at', 'gig_id'];
 
     public function agent()
     {
@@ -26,5 +26,10 @@ class OnboardingSession extends Model
     public function chatLogs()
     {
         return $this->hasMany(ChatLog::class, 'session_id');
+    }
+
+    public function gig()
+    {
+    return $this->belongsTo(Gig::class);
     }
 }

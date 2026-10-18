@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agent;
+use App\Models\Gig;
 use App\Models\OnboardingSession;
 use App\Models\Step;
 use App\Services\SessionStatus;
@@ -61,6 +62,7 @@ class AgentDashboardController extends Controller
             'agent_id' => $agent->id,
             'started_at' => now(),
             'status' => 'in_progress',
+            'gig_id' => Gig::where('slug', 'pos-merchant-onboarding')->value('id')
         ]);
 
         return redirect('/onboarding/' . $session->id);
