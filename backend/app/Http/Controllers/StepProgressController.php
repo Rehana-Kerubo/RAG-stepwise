@@ -255,7 +255,8 @@ class StepProgressController extends Controller
     //Short AI tips for one step. Generated once, then cached for everyone.
 
     public function guidance(Request $request, $stepId)
-    {
+    {   
+        set_time_limit(180);
         $step = Step::findOrFail($stepId);
 
         $tip = Cache::get('step_tip_' . $step->id);

@@ -1677,17 +1677,67 @@
     }
 
 
+    // Ask the server, trying once more if it fails or times out
+    async function askWithRetry(question, setNote) {
+
+        const MAX_ATTEMPTS = 2;
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+
+            let response = null;
+
+            try {
+
+                const currentStep = steps[currentStepIndex];
+
+                response = await fetch('/api/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: SESSION_ID,
+                        step_id: currentStep ? currentStep.id : null,
+                        question: question
+                    })
+                });
+
+            } catch (networkError) {
+
+                response = null;
+
+            }
+
+            if (response && response.ok) {
+                return await response.json();
+            }
+
+            // A 4xx means the request itself is wrong, so trying again won't help
+            if (response && response.status >= 400 && response.status < 500) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || data.error || 'The question could not be sent.');
+            }
+
+            // Network failure or server error: try again
+            if (attempt < MAX_ATTEMPTS) {
+                setNote('That took too long. Trying again, hang on tight...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+        }
+
+        throw new Error('StepWise is having trouble right now. Please try again in a minute.');
+
+    }
+
     form.addEventListener('submit', async (e) => {
 
         e.preventDefault();
 
-
-        const question =
-            input.value.trim();
-
+        const question = input.value.trim();
 
         if (!question) return;
-
 
         // AI answers need the server, so be clear when offline
         if (!navigator.onLine) {
@@ -1702,114 +1752,62 @@
 
         }
 
-
-        addMessage(
-            question,
-            'user'
-        );
-
+        addMessage(question, 'user');
 
         input.value = '';
-
         input.disabled = true;
 
+        const loadingBubble = document.createElement('div');
+        loadingBubble.className = 'flex';
 
-        const loadingBubble =
-            document.createElement('div');
+        const loadingText = document.createElement('div');
+        loadingText.className =
+            'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-counter px-4 py-2.5 text-[15px] italic text-muted';
+        loadingText.textContent = 'StepWise is thinking...';
 
-        loadingBubble.className =
-            'flex';
+        loadingBubble.appendChild(loadingText);
+        chatWindow.appendChild(loadingBubble);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
 
+        // Reassure the agent while a slow answer is on its way
+        const startedAt = Date.now();
+        let retryNote = null;
 
-        loadingBubble.innerHTML =
-            '<div class="mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-counter px-4 py-2.5 text-[15px] italic text-muted">StepWise is thinking...</div>';
+        const ticker = setInterval(() => {
 
+            if (retryNote) {
+                loadingText.textContent = retryNote;
+                return;
+            }
 
-        chatWindow.appendChild(
-            loadingBubble
-        );
+            const seconds = (Date.now() - startedAt) / 1000;
 
+            loadingText.textContent =
+                seconds < 6 ? 'StepWise is thinking...' :
+                seconds < 20 ? 'Hang on tight, this is taking a little longer...' :
+                'Still working on it. The first answer after a pause is the slowest.';
 
-        chatWindow.scrollTop =
-            chatWindow.scrollHeight;
-
+        }, 1000);
 
         try {
 
-            const currentStep =
-                steps[currentStepIndex];
+            const data = await askWithRetry(question, (note) => { retryNote = note; });
 
-
-            const response =
-                await fetch(
-                    '/api/ask',
-                    {
-                        method: 'POST',
-
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-
-                        body: JSON.stringify({
-
-                            session_id: SESSION_ID,
-
-                            step_id:
-                                currentStep
-                                    ? currentStep.id
-                                    : null,
-
-                            question:
-                                question
-
-                        })
-                    }
-                );
-
-
-            const data =
-                await response.json();
-
-
-            loadingBubble.remove();
-
-
-            if (!response.ok) {
-
-                addMessage(
-                    'Something went wrong: ' +
-                    (data.error ||
-                        data.message ||
-                        'unknown error'),
-                    'bot'
-                );
-
-            } else {
-
-                addMessage(
-                    data.answer,
-                    'bot'
-                );
-
-            }
-
+            addMessage(data.answer, 'bot');
 
         } catch (error) {
 
+            addMessage(error.message, 'bot');
+
+        } finally {
+
+            clearInterval(ticker);
             loadingBubble.remove();
 
-            addMessage(
-                'Could not reach the server.',
-                'bot'
-            );
+            input.disabled = false;
+            input.focus();
 
         }
-
-
-        input.disabled = false;
-
-        input.focus();
 
     });
 
