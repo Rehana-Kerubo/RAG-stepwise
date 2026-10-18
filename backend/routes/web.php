@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AgentDashboardController;
+use App\Http\Controllers\ManagerDashboardController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -16,3 +17,7 @@ Route::get('/onboarding/{sessionId}', function ($sessionId) {
 Route::get('/agent', [AgentDashboardController::class, 'index']);
 Route::get('/agent/{agentId}', [AgentDashboardController::class, 'show']);
 Route::post('/agent/{agentId}/sessions', [AgentDashboardController::class, 'startSession']);
+
+Route::get('/manager', [ManagerDashboardController::class, 'index']);
+Route::get('/manager/sessions/{sessionId}', [ManagerDashboardController::class, 'session']);
+Route::post('/manager/alerts/{alertId}/resolve', [ManagerDashboardController::class, 'resolve']);

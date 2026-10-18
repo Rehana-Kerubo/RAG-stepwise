@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Agent;
 use App\Models\OnboardingSession;
 use App\Models\Step;
+use App\Services\SessionStatus;
 
 class AgentDashboardController extends Controller
 {
@@ -14,6 +15,7 @@ class AgentDashboardController extends Controller
      */
     public function index()
     {
+        SessionStatus::reconcile();
         $agents = Agent::where('status', 'active')
             ->orderBy('name')
             ->get();

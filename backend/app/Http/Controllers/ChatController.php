@@ -6,6 +6,7 @@ use App\Models\ChatLog;
 use App\Models\OnboardingSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use App\Services\AlertRules;
 
 class ChatController extends Controller
 {
@@ -56,6 +57,8 @@ class ChatController extends Controller
             'sources'    => isset($data['sources']) ? implode(', ', $data['sources']) : null,
         ]);
 
+        AlertRules::checkRepeatedHelp((int) $validated['session_id'], isset($validated['step_id']) ? (int) $validated['step_id'] : null);
+        
         return response()->json([
             'answer'  => $chatLog->answer,
             'sources' => $data['sources'] ?? [],
