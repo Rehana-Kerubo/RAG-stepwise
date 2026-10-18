@@ -11,7 +11,8 @@ use App\Services\AlertRules;
 class ChatController extends Controller
 {
     public function ask(Request $request)
-    {
+    {   
+        set_time_limit(180);
         $validated = $request->validate([
             'session_id' => 'required|exists:onboarding_sessions,id',
             'step_id'    => 'nullable|exists:steps,id',
@@ -25,20 +26,26 @@ class ChatController extends Controller
     $step = \App\Models\Step::find($validated['step_id']);
     }
 
-    $response = Http::timeout(60)->post(
+    try {
+        $response = Http::timeout(120)->post(
         rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
         [
             'question' => $validated['question'],
-            'step' => $step ? [
-                'id' => $step->id,
-                'title' => $step->title,
-                'instructions' => $step->instructions,
-                'guidance_label' => $step->guidance_label,
-                'validation_rules' => $step->validation_rules,
-                'order_number' => $step->order_number,
-            ] : null,
+            // 'step' => $step ? [
+            //     'id' => $step->id,
+            //     'title' => $step->title,
+            //     'instructions' => $step->instructions,
+            //     'guidance_label' => $step->guidance_label,
+            //     'validation_rules' => $step->validation_rules,
+            //     'order_number' => $step->order_number,
+            // ] : null,
          ]
     );
+    } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        return response()->json([
+            'error' => 'Stepwise AI service did not respond: ' . $e->getMessage(),
+        ], 502);
+    }
 
         if (! $response->successful()) {
             return response()->json([
@@ -58,7 +65,7 @@ class ChatController extends Controller
         ]);
 
         AlertRules::checkRepeatedHelp((int) $validated['session_id'], isset($validated['step_id']) ? (int) $validated['step_id'] : null);
-        
+
         return response()->json([
             'answer'  => $chatLog->answer,
             'sources' => $data['sources'] ?? [],
