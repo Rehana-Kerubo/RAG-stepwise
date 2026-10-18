@@ -7,21 +7,24 @@ use App\Models\OnboardingSession;
 use App\Models\Step;
 use App\Models\StepProgress;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\Rule;
 
 class StepProgressController extends Controller
 {
     /**
-     * Get all onboarding steps and their progress for a session.
+     * Get the onboarding steps of the session's gig, with the agent's progress.
      */
     public function index(Request $request, $sessionId)
     {
         $session = OnboardingSession::findOrFail($sessionId);
 
-        $steps = Step::orderBy('order_number')->get();
+        $steps = Step::where('gig_id', $session->gig_id)
+            ->orderBy('order_number')
+            ->get();
 
         $progress = StepProgress::where('session_id', $session->id)
             ->get()
@@ -37,12 +40,79 @@ class StepProgressController extends Controller
                 'guidance_label' => $step->guidance_label,
                 'validation_rules' => $step->validation_rules,
                 'order_number' => $step->order_number,
+                'input_type' => $step->input_type,
+                'input_config' => $step->input_config,
                 'completed' => $p && $p->completed_at !== null,
                 'progress_id' => $p?->id,
             ];
         });
 
         return response()->json($result);
+    }
+
+    /**
+     * Validation rules for a step, chosen from its input type and config.
+     * Returns null when the step is not configured.
+     */
+    private function rulesFor(Step $step): ?array
+    {
+        $config = $step->input_config ?? [];
+        $submissionType = $config['submission_type'] ?? null;
+
+        if (! $submissionType) {
+            return null;
+        }
+
+        $typeRule = ['required', Rule::in([$submissionType])];
+
+        switch ($step->input_type) {
+
+            case 'photo':
+                return [
+                    'submission_data.type' => $typeRule,
+                    'submission_data.filename' => 'required|string|max:255',
+                    'submission_data.mime_type' => 'required|in:image/jpeg,image/png,image/webp',
+                    'submission_data.response' => [
+                        'required',
+                        'string',
+                        'max:11000000',
+                        'regex:/^data:image\/(jpeg|png|webp);base64,/',
+                    ],
+                ];
+
+            case 'confirm':
+                return [
+                    'submission_data.type' => $typeRule,
+                    'submission_data.response' => 'required|string',
+                ];
+
+            case 'text':
+                return [
+                    'submission_data.type' => $typeRule,
+                    'submission_data.response' => 'required|string|max:' . ($config['max_length'] ?? 255),
+                ];
+
+            case 'select':
+                $field = $config['field'] ?? 'response';
+                $allowed = collect($config['options'] ?? [])->pluck('value')->all();
+
+                if (! $allowed) {
+                    return null;
+                }
+
+                $rules = [
+                    'submission_data.type' => $typeRule,
+                    "submission_data.$field" => ['required', Rule::in($allowed)],
+                ];
+
+                if ($field !== 'response') {
+                    $rules['submission_data.response'] = 'required|string';
+                }
+
+                return $rules;
+        }
+
+        return null;
     }
 
     /**
@@ -53,6 +123,13 @@ class StepProgressController extends Controller
         $session = OnboardingSession::findOrFail($sessionId);
         $step = Step::findOrFail($stepId);
 
+        // The step must belong to the gig this session is running.
+        if ((int) $step->gig_id !== (int) $session->gig_id) {
+            return response()->json([
+                'message' => 'This step does not belong to this onboarding session.',
+            ], 422);
+        }
+
         // Do not accept submissions for inactive sessions.
         if (strtolower($session->status) !== 'in_progress') {
             return response()->json([
@@ -60,16 +137,13 @@ class StepProgressController extends Controller
             ], 422);
         }
 
-        // A step cannot be submitted before earlier steps are completed.
+        // A step cannot be submitted before earlier steps of the same gig are completed.
         $completedStepIds = StepProgress::where('session_id', $sessionId)
             ->whereNotNull('completed_at')
             ->pluck('step_id');
 
-        $hasIncompletePreviousStep = Step::where(
-            'order_number',
-            '<',
-            $step->order_number
-        )
+        $hasIncompletePreviousStep = Step::where('gig_id', $step->gig_id)
+            ->where('order_number', '<', $step->order_number)
             ->whereNotIn('id', $completedStepIds)
             ->exists();
 
@@ -84,62 +158,9 @@ class StepProgressController extends Controller
             'submission_data' => 'required|array',
         ]);
 
-        $rules = [];
+        $rules = $this->rulesFor($step);
 
-        // Steps 1–3: ID, customer photo, and business-location evidence.
-        if (in_array((int) $step->order_number, [1, 2, 3], true)) {
-            $rules = [
-                'submission_data.type' => 'required|in:document',
-                'submission_data.filename' => 'required|string|max:255',
-                'submission_data.mime_type' => 'required|in:image/jpeg,image/png,image/webp',
-                'submission_data.response' => [
-                    'required',
-                    'string',
-                    'max:11000000',
-                    'regex:/^data:image\/(jpeg|png|webp);base64,/',
-                ],
-            ];
-        }
-
-        // Steps 4–6, 8, and 10–12: agent confirmations.
-        elseif (in_array(
-            (int) $step->order_number,
-            [4, 5, 6, 8, 10, 11, 12],
-            true
-        )) {
-            $rules = [
-                'submission_data.type' => 'required|in:confirmation',
-                'submission_data.response' => 'required|string',
-            ];
-        }
-
-        // Step 7: POS activation code.
-        elseif ((int) $step->order_number === 7) {
-            $rules = [
-                'submission_data.type' => 'required|in:activation_code',
-                'submission_data.response' => 'required|string|max:100',
-            ];
-        }
-
-        // Step 9: Till or Paybill request.
-        elseif ((int) $step->order_number === 9) {
-            $rules = [
-                'submission_data.type' => 'required|in:linking_request',
-                'submission_data.request_type' => 'required|in:Till,Paybill',
-                'submission_data.response' => 'required|string',
-            ];
-        }
-
-        // Step 13: staff account setup.
-        elseif ((int) $step->order_number === 13) {
-            $rules = [
-                'submission_data.type' => 'required|in:staff_accounts',
-                'submission_data.response' =>
-                    'required|in:setup_required,not_applicable',
-            ];
-        }
-
-        else {
+        if ($rules === null) {
             return response()->json([
                 'message' => 'This onboarding step is not configured.',
             ], 422);
@@ -162,10 +183,10 @@ class StepProgressController extends Controller
         // Save the submission and mark the step complete.
         $submissionData = $validated['submission_data'];
 
-        if (in_array((int) $step->order_number, [1, 2, 3], true)) {
+        if ($step->input_type === 'photo') {
             $dataUrl = $submissionData['response'];
 
-            if (!preg_match(
+            if (! preg_match(
                 '/^data:image\/(jpeg|png|webp);base64,(.+)$/s',
                 $dataUrl,
                 $matches
@@ -213,12 +234,9 @@ class StepProgressController extends Controller
         $progress->completed_at = now();
         $progress->save();
 
-        // Find the next step.
-        $nextStep = Step::where(
-            'order_number',
-            '>',
-            $step->order_number
-        )
+        // Find the next step within the same gig.
+        $nextStep = Step::where('gig_id', $step->gig_id)
+            ->where('order_number', '>', $step->order_number)
             ->orderBy('order_number')
             ->first();
 
@@ -246,16 +264,18 @@ class StepProgressController extends Controller
                 'guidance_label' => $nextStep->guidance_label,
                 'validation_rules' => $nextStep->validation_rules,
                 'order_number' => $nextStep->order_number,
+                'input_type' => $nextStep->input_type,
+                'input_config' => $nextStep->input_config,
             ] : null,
             'onboarding_complete' => $nextStep === null,
         ]);
     }
 
- 
-    //Short AI tips for one step. Generated once, then cached for everyone.
+
+    // Short AI tips for one step. Generated once, then cached for everyone.
 
     public function guidance(Request $request, $stepId)
-    {   
+    {
         set_time_limit(180);
         $step = Step::findOrFail($stepId);
 

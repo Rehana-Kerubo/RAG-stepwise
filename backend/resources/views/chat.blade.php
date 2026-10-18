@@ -134,7 +134,16 @@
         style="padding-top: calc(env(safe-area-inset-top) + 14px);">
 
         <div class="flex items-center justify-between">
-            <a href="{{ isset($agentId) ? url('/agent/' . $agentId) : url('/') }}" class="text-[19px] font-extrabold tracking-tight">StepWise</a>
+            <a id="back-link"
+               href="{{ isset($agentId) ? url('/agent/' . $agentId) : url('/agent') }}"
+               class="flex items-center gap-1.5"
+               aria-label="Back to dashboard">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+                <span class="text-[19px] font-extrabold tracking-tight">StepWise</span>
+            </a>
 
             <button
                 id="steps-open"
@@ -336,6 +345,7 @@
     // ============================================================
 
     const SESSION_ID = {{ $sessionId ?? 3 }};
+    const DASHBOARD_URL = "{{ isset($agentId) ? url('/agent/' . $agentId) : url('/agent') }}";
     const STEPS_CACHE_KEY = 'stepwise_steps_' + SESSION_ID;
 
     let steps = [];
@@ -884,216 +894,156 @@
     // RENDER CURRENT STEP
     // ============================================================
 
+    function esc(value) {
+        const div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML.replace(/"/g, '&quot;');
+    }
+
     function renderStepInput(step) {
-    const order = Number(step.order_number);
-    let html = '';
 
-    const selectClasses =
-        'h-14 w-full rounded-xl border border-hairline bg-slip px-4 text-[16px]';
+        const config = step.input_config || {};
 
-    const checkboxClasses =
-        'mt-0.5 h-6 w-6 shrink-0 accent-[#0B7A52]';
+        const selectClasses =
+            'h-14 w-full rounded-xl border border-hairline bg-slip px-4 text-[16px]';
 
-    function confirmation(label) {
-        return `
-            <label class="flex min-h-[64px] cursor-pointer items-start gap-3 rounded-2xl border border-hairline bg-slip p-4 has-[:checked]:border-ledger has-[:checked]:bg-ledger-soft">
-                <input type="checkbox" id="step-input" class="${checkboxClasses}">
-                <span class="text-[16px] leading-snug">${label}</span>
-            </label>
-        `;
-    }
+        const checkboxClasses =
+            'mt-0.5 h-6 w-6 shrink-0 accent-[#0B7A52]';
 
-    // Steps 1–3: Capture documents and photos
-    if (order >= 1 && order <= 3) {
-        const configs = {
-            1: {
-                label: 'Customer ID or passport',
-                description: 'Capture a clear image of the customer’s national ID or passport.',
-                capture: 'environment',
-                accept: 'image/*'
-            },
-            2: {
-                label: 'Customer photo',
-                description: 'Take a clear passport-size photo of the customer.',
-                capture: 'user',
-                accept: 'image/*'
-            },
-            3: {
-                label: 'Proof of business location',
-                description: 'Capture the business permit or utility bill showing the business location.',
-                capture: 'environment',
-                accept: 'image/*'
+        function confirmation(label, id) {
+            return `
+                <label class="flex min-h-[64px] cursor-pointer items-start gap-3 rounded-2xl border border-hairline bg-slip p-4 has-[:checked]:border-ledger has-[:checked]:bg-ledger-soft">
+                    <input type="checkbox" id="${id || 'step-input'}" class="${checkboxClasses}">
+                    <span class="text-[16px] leading-snug">${esc(label)}</span>
+                </label>
+            `;
+        }
+
+        let html = '';
+
+        switch (step.input_type) {
+
+            case 'photo':
+
+                stepInputLabel.textContent = config.label || 'Photo';
+
+                html = `
+                    <p class="mb-3 text-[15px] leading-snug text-muted">
+                        ${esc(config.description || '')}
+                    </p>
+
+                    <label class="relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-hairline bg-slip text-center focus-within:border-cobalt">
+                        <input type="file" id="step-input"
+                            accept="image/*"
+                            capture="${esc(config.capture || 'environment')}"
+                            class="sr-only">
+
+                        <img id="capture-preview" alt="Preview of the selected photo"
+                            class="absolute inset-0 hidden h-full w-full object-cover">
+
+                        <span id="capture-prompt" class="px-6 text-[17px] font-bold">Take photo</span>
+                        <span id="capture-sub" class="mt-1 px-6 text-sm text-muted">Opens your camera</span>
+
+                        <span id="capture-retake"
+                            class="absolute bottom-3 hidden rounded-full bg-ink/80 px-4 py-1.5 text-sm font-semibold text-white">
+                            Tap to retake
+                        </span>
+                    </label>
+                `;
+                break;
+
+            case 'confirm':
+
+                stepInputLabel.textContent = config.label || 'Confirmation';
+                html = confirmation(config.statement || 'I have completed this step.');
+                break;
+
+            case 'text':
+
+                stepInputLabel.textContent = config.label || 'Details';
+
+                html = `
+                    <input type="text" id="step-input"
+                        placeholder="${esc(config.placeholder || '')}"
+                        maxlength="${esc(config.max_length || 255)}"
+                        autocomplete="off"
+                        autocorrect="off"
+                        spellcheck="false"
+                        class="h-14 w-full rounded-xl border border-hairline bg-slip px-4 text-[18px] tracking-wide">
+                `;
+                break;
+
+            case 'select': {
+
+                stepInputLabel.textContent = config.label || 'Choose an option';
+
+                const options = (config.options || []).map(option =>
+                    `<option value="${esc(option.value)}">${esc(option.label)}</option>`
+                ).join('');
+
+                html = `
+                    ${config.description ? `
+                        <p class="mb-3 text-[15px] leading-snug text-muted">${esc(config.description)}</p>
+                    ` : ''}
+
+                    ${config.select_label ? `
+                        <label for="step-input" class="mb-2 block text-[15px] text-muted">${esc(config.select_label)}</label>
+                    ` : ''}
+
+                    <select id="step-input" class="${selectClasses} ${config.confirm_statement ? 'mb-4' : ''}">
+                        <option value="">${esc(config.placeholder || 'Choose an option')}</option>
+                        ${options}
+                    </select>
+
+                    ${config.confirm_statement
+                        ? confirmation(config.confirm_statement, 'step-confirm')
+                        : ''}
+                `;
+                break;
             }
-        };
 
-        const config = configs[order];
-        stepInputLabel.textContent = config.label;
+            default:
 
-        html = `
-            <p class="mb-3 text-[15px] leading-snug text-muted">
-                ${config.description}
-            </p>
+                stepInputLabel.textContent = 'Step submission';
 
-            <label class="relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-hairline bg-slip text-center focus-within:border-cobalt">
-                <input type="file" id="step-input"
-                    accept="${config.accept}"
-                    capture="${config.capture}"
-                    class="sr-only">
+                html = `
+                    <textarea id="step-input" rows="3"
+                        placeholder="Enter your response"
+                        class="w-full rounded-xl border border-hairline bg-slip px-4 py-3 text-[16px]"></textarea>
+                `;
 
-                <img id="capture-preview" alt="Preview of the selected photo"
-                    class="absolute inset-0 hidden h-full w-full object-cover">
+        }
 
-                <span id="capture-prompt" class="px-6 text-[17px] font-bold">Take photo</span>
-                <span id="capture-sub" class="mt-1 px-6 text-sm text-muted">Opens your camera</span>
+        stepInputContainer.innerHTML = html;
+        stepInput = stepInputContainer.querySelector('#step-input');
 
-                <span id="capture-retake"
-                    class="absolute bottom-3 hidden rounded-full bg-ink/80 px-4 py-1.5 text-sm font-semibold text-white">
-                    Tap to retake
-                </span>
-            </label>
-        `;
-    }
+        // Show a preview of the captured photo
+        if (step.input_type === 'photo' && stepInput) {
 
-    // Step 4: Review and submit KYC documents
-    else if (order === 4) {
-        stepInputLabel.textContent = 'KYC submission';
-        html = confirmation(
-            'I have reviewed the required KYC documents and submitted them for verification.'
-        );
-    }
+            stepInput.addEventListener('change', () => {
 
-    // Step 5: Power on POS
-    else if (order === 5) {
-        stepInputLabel.textContent = 'POS device';
-        html = confirmation(
-            'I have powered on the POS device and confirmed that it starts successfully.'
-        );
-    }
+                const file = stepInput.files?.[0];
 
-    // Step 6: Connect POS
-    else if (order === 6) {
-        stepInputLabel.textContent = 'Network connection';
-        html = confirmation(
-            'I have connected the POS device to Wi-Fi or mobile data and confirmed connectivity.'
-        );
-    }
+                if (!file) return;
 
-    // Step 7: Activation code
-    else if (order === 7) {
-        stepInputLabel.textContent = 'POS activation code';
-        html = `
-            <input type="text" id="step-input"
-                placeholder="Enter activation code"
-                autocomplete="off"
-                autocorrect="off"
-                spellcheck="false"
-                class="h-14 w-full rounded-xl border border-hairline bg-slip px-4 text-[18px] tracking-wide">
-        `;
-    }
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
 
-    // Step 8: Test transaction
-    else if (order === 8) {
-        stepInputLabel.textContent = 'Test transaction';
-        html = confirmation(
-            'I performed the KES 1 test transaction and confirmed it appeared on the merchant dashboard within 2 minutes.'
-        );
-    }
+                previewUrl = URL.createObjectURL(file);
 
-    // Step 9: Till or Paybill request
-    else if (order === 9) {
-        stepInputLabel.textContent = 'Till or Paybill request';
-        html = `
-            <label for="request-type" class="mb-2 block text-[15px] text-muted">
-                Request type
-            </label>
-            <select id="request-type" class="${selectClasses} mb-4">
-                <option value="">Choose request type</option>
-                <option value="Till">Till</option>
-                <option value="Paybill">Paybill</option>
-            </select>
-            ${confirmation(
-                'I have checked the applicable requirements and submitted the request.'
-            )}
-        `;
-    }
+                const preview = stepInputContainer.querySelector('#capture-preview');
 
-    // Step 10: Confirmation
-    else if (order === 10) {
-        stepInputLabel.textContent = 'Activation confirmation';
-        html = confirmation(
-            'I have confirmed that the merchant received the SMS confirming Till or Paybill activation.'
-        );
-    }
+                preview.src = previewUrl;
+                preview.classList.remove('hidden');
 
-    // Step 11: First transaction
-    else if (order === 11) {
-        stepInputLabel.textContent = 'First transaction';
-        html = confirmation(
-            'I guided the merchant through a transaction and confirmed it completed successfully.'
-        );
-    }
+                stepInputContainer.querySelector('#capture-prompt').classList.add('hidden');
+                stepInputContainer.querySelector('#capture-sub').classList.add('hidden');
+                stepInputContainer.querySelector('#capture-retake').classList.remove('hidden');
 
-    // Step 12: Transaction history
-    else if (order === 12) {
-        stepInputLabel.textContent = 'Transaction history';
-        html = confirmation(
-            'I showed the merchant how to view their balance and transaction history.'
-        );
-    }
+            });
 
-    // Step 13: Staff accounts
-    else if (order === 13) {
-        stepInputLabel.textContent = 'Staff account setup';
-        html = `
-            <p class="mb-3 text-[15px] leading-snug text-muted">
-                Does the merchant have employees who need individual accounts?
-            </p>
-            <select id="step-input" class="${selectClasses}">
-                <option value="">Choose an option</option>
-                <option value="setup_required">Yes — staff accounts have been set up</option>
-                <option value="not_applicable">No additional staff accounts are needed</option>
-            </select>
-        `;
-    }
-
-    else {
-        stepInputLabel.textContent = 'Step submission';
-        html = `
-            <textarea id="step-input" rows="3"
-                placeholder="Enter your response"
-                class="w-full rounded-xl border border-hairline bg-slip px-4 py-3 text-[16px]"></textarea>
-        `;
-    }
-
-    stepInputContainer.innerHTML = html;
-    stepInput = stepInputContainer.querySelector('#step-input');
-
-    // Show a preview of the captured photo
-    if (order >= 1 && order <= 3 && stepInput) {
-
-        stepInput.addEventListener('change', () => {
-
-            const file = stepInput.files?.[0];
-
-            if (!file) return;
-
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-
-            previewUrl = URL.createObjectURL(file);
-
-            const preview = stepInputContainer.querySelector('#capture-preview');
-
-            preview.src = previewUrl;
-            preview.classList.remove('hidden');
-
-            stepInputContainer.querySelector('#capture-prompt').classList.add('hidden');
-            stepInputContainer.querySelector('#capture-sub').classList.add('hidden');
-            stepInputContainer.querySelector('#capture-retake').classList.remove('hidden');
-
-        });
+        }
 
     }
-}
 
     function updateNextLabel() {
 
@@ -1190,7 +1140,7 @@
                 'You have reached the end of the onboarding workflow.';
             guidanceLabel.textContent =
                 'All onboarding steps have been submitted.';
-            nextButton.textContent = 'Onboarding complete';
+            nextButton.textContent = 'Back to dashboard';
 
         }
 
@@ -1199,7 +1149,7 @@
         stepInputLabel.textContent = 'Submission';
         stepInput = null;
 
-        nextButton.disabled = true;
+        nextButton.disabled = pending > 0;
 
         renderStepsList();
 
@@ -1245,172 +1195,167 @@
 
     }
 
-   nextButton.addEventListener('click', async () => {
-    const step = steps[currentStepIndex];
+    nextButton.addEventListener('click', async () => {
 
-    if (!step || !stepInput) return;
-
-    clearError();
-
-    const order = Number(step.order_number);
-    const payload = {};
-
-    // Steps 1–3: Read selected image
-    if (order >= 1 && order <= 3) {
-        const file = stepInput.files?.[0];
-
-        if (!file) {
-            showError('Take or choose the required photo first.');
+        if (finishedShown) {
+            window.location.href = DASHBOARD_URL;
             return;
         }
 
-        if (!file.type.startsWith('image/')) {
-            showError('That file is not an image. Choose a photo instead.');
-            return;
-        }
+        const step = steps[currentStepIndex];
 
-        if (file.size > 5 * 1024 * 1024) {
-            showError('That photo is larger than 5 MB. Retake it at a lower quality.');
-            return;
-        }
+        if (!step || !stepInput) return;
 
-        try {
-            payload.type = 'document';
-            payload.filename = file.name;
-            payload.mime_type = file.type;
-            payload.response = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => reject(
-                    new Error('Could not read the selected image.')
-                );
-                reader.readAsDataURL(file);
-            });
-        } catch (error) {
-            showError(error.message);
-            return;
-        }
-    }
+        clearError();
 
-    // Step 7: Activation code
-    else if (order === 7) {
-        const code = stepInput.value.trim();
+        const config = step.input_config || {};
+        const payload = { type: config.submission_type };
 
-        if (!code) {
-            showError('Enter the POS activation code.');
-            return;
-        }
+        if (step.input_type === 'photo') {
 
-        payload.type = 'activation_code';
-        payload.response = code;
-    }
+            const file = stepInput.files?.[0];
 
-    // Step 9: Till or Paybill request
-    else if (order === 9) {
-        const requestType =
-            stepInputContainer.querySelector('#request-type')?.value;
-
-        const confirmed =
-            stepInputContainer.querySelector('input[type="checkbox"]')?.checked;
-
-        if (!requestType) {
-            showError('Choose Till or Paybill.');
-            return;
-        }
-
-        if (!confirmed) {
-            showError('Tick the box to confirm you submitted the request.');
-            return;
-        }
-
-        payload.type = 'linking_request';
-        payload.request_type = requestType;
-        payload.response = 'Request requirements checked and request submitted';
-    }
-
-    // Step 13: Staff accounts
-    else if (order === 13) {
-        const choice = stepInput.value;
-
-        if (!choice) {
-            showError('Choose an option for staff account setup.');
-            return;
-        }
-
-        payload.type = 'staff_accounts';
-        payload.response = choice;
-    }
-
-    // Steps 4–6 and 8, 10–12: Confirmation
-    else {
-        if (!stepInput.checked) {
-            showError('Tick the box to confirm you completed this action.');
-            return;
-        }
-
-        payload.type = 'confirmation';
-        payload.response = 'Confirmed by agent';
-    }
-
-    nextButton.disabled = true;
-    nextButton.textContent = 'Saving...';
-
-    try {
-
-        let response = null;
-
-        if (navigator.onLine) {
-            try {
-                response = await sendSubmission(step.id, payload);
-            } catch (networkError) {
-                response = null; // server unreachable: treat like offline
-            }
-        }
-
-        // Offline (or server unreachable): keep the work on this device
-        if (response === null) {
-            try {
-                await queueSubmission(step, payload);
-            } catch (storageError) {
-                showError('Could not save this step on the device. Reconnect and try again.');
+            if (!file) {
+                showError('Take or choose the required photo first.');
                 return;
             }
 
-            updateBanner();
-            showToast('Saved on this device. It will sync when you reconnect.');
+            if (!file.type.startsWith('image/')) {
+                showError('That file is not an image. Choose a photo instead.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                showError('That photo is larger than 5 MB. Retake it at a lower quality.');
+                return;
+            }
+
+            try {
+                payload.filename = file.name;
+                payload.mime_type = file.type;
+                payload.response = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(
+                        new Error('Could not read the selected image.')
+                    );
+                    reader.readAsDataURL(file);
+                });
+            } catch (error) {
+                showError(error.message);
+                return;
+            }
+
+        } else if (step.input_type === 'text') {
+
+            const value = stepInput.value.trim();
+
+            if (!value) {
+                showError(`Enter the ${(config.label || 'required value').toLowerCase()}.`);
+                return;
+            }
+
+            payload.response = value;
+
+        } else if (step.input_type === 'select') {
+
+            const value = stepInput.value;
+            const field = config.field || 'response';
+
+            if (!value) {
+                showError('Choose an option first.');
+                return;
+            }
+
+            if (config.confirm_statement) {
+
+                const confirmed = stepInputContainer.querySelector('#step-confirm')?.checked;
+
+                if (!confirmed) {
+                    showError('Tick the box to confirm before continuing.');
+                    return;
+                }
+
+            }
+
+            payload[field] = value;
+
+            if (field !== 'response') {
+                payload.response = config.response_text || value;
+            }
+
+        } else {
+
+            // Plain confirmation
+            if (!stepInput.checked) {
+                showError('Tick the box to confirm you completed this action.');
+                return;
+            }
+
+            payload.response = 'Confirmed by agent';
+
+        }
+
+        nextButton.disabled = true;
+        nextButton.textContent = 'Saving...';
+
+        try {
+
+            let response = null;
+
+            if (navigator.onLine) {
+                try {
+                    response = await sendSubmission(step.id, payload);
+                } catch (networkError) {
+                    response = null; // server unreachable: treat like offline
+                }
+            }
+
+            // Offline (or server unreachable): keep the work on this device
+            if (response === null) {
+                try {
+                    await queueSubmission(step, payload);
+                } catch (storageError) {
+                    showError('Could not save this step on the device. Reconnect and try again.');
+                    return;
+                }
+
+                updateBanner();
+                showToast('Saved on this device. It will sync when you reconnect.');
+                goToNextStep();
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message || 'Could not submit this step.'
+                );
+            }
+
+            step.completed = true;
+            step.queued = false;
+
+            saveStepsCache();
+
+            if (data.onboarding_complete) {
+                showFinishedScreen();
+                return;
+            }
+
             goToNextStep();
-            return;
+
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            if (!finishedShown) {
+                nextButton.disabled = false;
+                updateNextLabel();
+            }
         }
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(
-                data.message || 'Could not submit this step.'
-            );
-        }
-
-        step.completed = true;
-        step.queued = false;
-
-        saveStepsCache();
-
-        if (data.onboarding_complete) {
-            showFinishedScreen();
-            return;
-        }
-
-        goToNextStep();
-
-    } catch (error) {
-        showError(error.message);
-    } finally {
-        if (!finishedShown) {
-            nextButton.disabled = false;
-            updateNextLabel();
-        }
-    }
-});
+    });
 
 
     // ============================================================
@@ -1807,6 +1752,21 @@
             input.disabled = false;
             input.focus();
 
+        }
+
+    });
+
+
+    document.getElementById('back-link').addEventListener('click', (event) => {
+
+        const unsaved = stepInput && (
+            (stepInput.type === 'file' && stepInput.files && stepInput.files.length) ||
+            (stepInput.type === 'checkbox' && stepInput.checked) ||
+            (stepInput.type !== 'file' && stepInput.type !== 'checkbox' && stepInput.value)
+        );
+
+        if (unsaved && !confirm('You have not saved this step yet. Leave anyway?')) {
+            event.preventDefault();
         }
 
     });
