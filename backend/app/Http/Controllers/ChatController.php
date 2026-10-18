@@ -31,14 +31,7 @@ class ChatController extends Controller
         rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
         [
             'question' => $validated['question'],
-            // 'step' => $step ? [
-            //     'id' => $step->id,
-            //     'title' => $step->title,
-            //     'instructions' => $step->instructions,
-            //     'guidance_label' => $step->guidance_label,
-            //     'validation_rules' => $step->validation_rules,
-            //     'order_number' => $step->order_number,
-            // ] : null,
+            'gig' => \App\Models\OnboardingSession::find($validated['session_id'])->gig?->slug,
          ]
     );
     } catch (\Illuminate\Http\Client\ConnectionException $e) {

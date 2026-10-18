@@ -3,7 +3,7 @@
 @section('title', 'StepWise: onboarding #' . $session->id)
 
 @section('content')
-<div class="mx-auto min-h-[100dvh] max-w-5xl bg-counter px-5 pb-12 pt-7 sm:px-8 sm:shadow-xl">
+<div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 pb-12 pt-7 sm:px-8 sm:shadow-xl lg:px-12 lg:pt-10">
 
     <a href="{{ url('/manager') }}" class="text-sm font-semibold text-cobalt-deep">Back to dashboard</a>
 
@@ -25,7 +25,9 @@
         <div>
             <h1 class="text-[30px] font-extrabold leading-[1.08] tracking-tight">Onboarding #{{ $session->id }}</h1>
             <p class="mt-1 text-[15px] text-muted">
-                {{ $session->agent?->name ?? 'Unknown agent' }}, started {{ $started }}
+                {{ $session->agent?->name ?? 'Unknown agent' }},
+                {{ $session->gig?->name ?? 'No gig' }},
+                started {{ $started }}
             </p>
         </div>
 
@@ -42,7 +44,8 @@
                     <div>
                         <div class="text-[15px] font-bold">{{ $alert->reason }}</div>
                         <div class="mt-0.5 text-sm text-muted">
-                            Step "{{ $alert->step?->title ?? 'Unknown step' }}",
+                            {{ $session->gig?->name ?? 'No gig' }},
+                            step "{{ $alert->step?->title ?? 'Unknown step' }}",
                             {{ $alert->is_resolved ? 'resolved' : 'open' }}
                         </div>
                     </div>
@@ -79,10 +82,21 @@
                         ? $p->submission_data
                         : (json_decode((string) $p->submission_data, true) ?? []);
 
+                    // Turn a select value into its label from this step's own options.
+                    $optionLabel = fn ($value) => collect($step->input_config['options'] ?? [])
+                        ->firstWhere('value', $value)['label'] ?? $value;
+
+                    // Activation codes and ID numbers are never shown, only that they were entered.
                     $summary = match ($data['type'] ?? '') {
                         'document' => 'Photo uploaded',
                         'confirmation' => 'Confirmed by agent',
                         'activation_code' => 'Activation code entered',
+                        'eligibility_check' => 'Eligible, original document seen: ' . $optionLabel($data['id_type'] ?? ''),
+                        'id_number' => 'ID number recorded',
+                        'sim_number' => 'Registered number: ' . ($data['response'] ?? ''),
+                        'airtel_money' => ($data['response'] ?? '') === 'activated'
+                            ? 'Airtel Money activated'
+                            : 'Customer declined Airtel Money',
                         'linking_request' => ($data['request_type'] ?? '') . ' requested',
                         'staff_accounts' => ($data['response'] ?? '') === 'setup_required'
                             ? 'Staff accounts set up'
