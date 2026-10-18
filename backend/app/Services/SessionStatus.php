@@ -9,15 +9,19 @@ use App\Models\StepProgress;
 class SessionStatus
 {
     /**
-     * Mark an onboarding as completed once every step has a completed record.
-     * Normally the status is set when the last step is submitted; this repairs
-     * any onboarding that finished some other way (older data, manual edits).
+     * Mark an onboarding as completed once every step of ITS OWN gig has a
+     * completed record. Normally the status is set when the last step is
+     * submitted; this repairs any onboarding that finished some other way
+     * (older data, manual edits).
      */
     public static function reconcile(): void
     {
-        $totalSteps = Step::count();
+        // Step count per gig, e.g. [1 => 13, 2 => 7]
+        $totals = Step::selectRaw('gig_id, COUNT(*) as total')
+            ->groupBy('gig_id')
+            ->pluck('total', 'gig_id');
 
-        if ($totalSteps === 0) {
+        if ($totals->isEmpty()) {
             return;
         }
 
@@ -26,7 +30,9 @@ class SessionStatus
             ->get();
 
         foreach ($sessions as $session) {
-            if ($session->saved_steps >= $totalSteps) {
+            $total = (int) ($totals[$session->gig_id] ?? 0);
+
+            if ($total > 0 && $session->saved_steps >= $total) {
                 $session->status = 'completed';
                 $session->completed_at = StepProgress::where('session_id', $session->id)
                     ->whereNotNull('completed_at')
