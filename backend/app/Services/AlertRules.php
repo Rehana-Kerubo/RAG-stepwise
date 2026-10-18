@@ -80,12 +80,14 @@ class AlertRules
                 continue;
             }
 
-            // The step the agent is stuck on: the first one not yet completed.
+            // The step the agent is stuck on: the first step of THIS session's gig
+            // that is not yet completed.
             $doneIds = StepProgress::where('session_id', $session->id)
                 ->whereNotNull('completed_at')
                 ->pluck('step_id');
 
-            $currentStep = Step::whereNotIn('id', $doneIds)
+            $currentStep = Step::where('gig_id', $session->gig_id)
+                ->whereNotIn('id', $doneIds)
                 ->orderBy('order_number')
                 ->first();
 
