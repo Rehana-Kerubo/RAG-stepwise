@@ -134,7 +134,7 @@
         style="padding-top: calc(env(safe-area-inset-top) + 14px);">
 
         <div class="flex items-center justify-between">
-            <h1 class="text-[19px] font-extrabold tracking-tight">StepWise</h1>
+            <a href="{{ isset($agentId) ? url('/agent/' . $agentId) : url('/') }}" class="text-[19px] font-extrabold tracking-tight">StepWise</a>
 
             <button
                 id="steps-open"
@@ -335,7 +335,7 @@
     // SESSION
     // ============================================================
 
-    const SESSION_ID = 3;
+    const SESSION_ID = {{ $sessionId ?? 3 }};
     const STEPS_CACHE_KEY = 'stepwise_steps_' + SESSION_ID;
 
     let steps = [];
