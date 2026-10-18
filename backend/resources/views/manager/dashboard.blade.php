@@ -3,7 +3,7 @@
 @section('title', 'StepWise: manager')
 
 @section('content')
-<div class="mx-auto min-h-[100dvh] max-w-5xl bg-counter px-5 pb-12 pt-7 sm:px-8 sm:shadow-xl">
+<div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 pb-12 pt-7 sm:px-8 sm:shadow-xl lg:px-12 lg:pt-10">
 
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -17,8 +17,25 @@
         </a>
     </div>
 
+    <!-- Gig filter -->
+    <form method="GET" action="{{ url('/manager') }}" class="mt-6 flex flex-wrap items-center gap-2">
+        <label for="gig" class="text-sm font-semibold">Gig</label>
+
+        <select id="gig" name="gig" onchange="this.form.submit()"
+                class="rounded-xl border border-hairline bg-slip px-3 py-2 text-sm">
+            <option value="">All gigs</option>
+            @foreach ($gigs as $gig)
+                <option value="{{ $gig->slug }}" @selected($selectedGig?->id === $gig->id)>{{ $gig->name }}</option>
+            @endforeach
+        </select>
+
+        <noscript>
+            <button type="submit" class="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">Filter</button>
+        </noscript>
+    </form>
+
     <!-- Summary -->
-    <div class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <div class="rounded-2xl bg-slip p-4">
             <div class="text-[30px] font-extrabold leading-none">{{ $counts['in_progress'] }}</div>
             <div class="mt-2 text-sm text-muted">In progress</div>
@@ -51,6 +68,7 @@
                         <div class="mt-1 text-sm leading-snug text-ink/80">
                             {{ $alert->session?->agent?->name ?? 'Unknown agent' }},
                             onboarding #{{ $alert->session_id }},
+                            {{ $alert->session?->gig?->name ?? 'Unknown gig' }},
                             step "{{ $alert->step?->title ?? 'Unknown step' }}"
                         </div>
 
@@ -78,7 +96,7 @@
             </div>
         @empty
             <p class="rounded-2xl bg-ledger-soft p-4 text-[15px] text-ledger">
-                No open alerts. Every active onboarding is moving along.
+                No open alerts{{ $selectedGig ? ' for this gig' : '' }}. Every active onboarding is moving along.
             </p>
         @endforelse
     </div>
@@ -87,10 +105,11 @@
     <h2 class="mt-10 text-[18px] font-bold">All onboardings</h2>
 
     <div class="mt-3 overflow-x-auto rounded-2xl border border-hairline bg-slip">
-        <table class="w-full min-w-[640px] text-left text-sm">
+        <table class="w-full min-w-[760px] text-left text-sm lg:text-[15px]">
             <thead class="border-b border-hairline text-muted">
                 <tr>
                     <th class="px-4 py-3 font-semibold">Onboarding</th>
+                    <th class="px-4 py-3 font-semibold">Gig</th>
                     <th class="px-4 py-3 font-semibold">Agent</th>
                     <th class="px-4 py-3 font-semibold">Status</th>
                     <th class="px-4 py-3 font-semibold">Progress</th>
@@ -102,6 +121,9 @@
                 @forelse ($sessions as $session)
                     @php
                         $saved = (int) $session->saved_steps;
+
+                        // Measured against this onboarding's own gig, not every step in the system.
+                        $total = (int) ($stepTotals[$session->gig_id] ?? 0);
 
                         $pill = match ($session->status) {
                             'completed' => 'bg-ledger-soft text-ledger',
@@ -122,6 +144,8 @@
                             </a>
                         </td>
 
+                        <td class="px-4 py-3">{{ $session->gig?->name ?? 'No gig' }}</td>
+
                         <td class="px-4 py-3">{{ $session->agent?->name ?? 'Unknown' }}</td>
 
                         <td class="px-4 py-3">
@@ -129,12 +153,12 @@
                         </td>
 
                         <td class="px-4 py-3">
-                            <div class="flex w-40 items-center gap-0.5" aria-hidden="true">
-                                @for ($i = 1; $i <= $totalSteps; $i++)
+                            <div class="flex w-40 items-center gap-0.5 lg:w-56" aria-hidden="true">
+                                @for ($i = 1; $i <= $total; $i++)
                                     <span class="h-2 flex-1 rounded-[2px] {{ $i <= $saved ? 'bg-ledger' : 'bg-hairline' }}"></span>
                                 @endfor
                             </div>
-                            <div class="mt-1 text-xs text-muted">{{ $saved }} of {{ $totalSteps }}</div>
+                            <div class="mt-1 text-xs text-muted">{{ $saved }} of {{ $total }}</div>
                         </td>
 
                         <td class="px-4 py-3">
@@ -153,7 +177,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-muted">No onboardings yet.</td>
+                        <td colspan="7" class="px-4 py-6 text-center text-muted">
+                            No onboardings{{ $selectedGig ? ' for this gig' : '' }} yet.
+                        </td>
                     </tr>
                 @endforelse
             </tbody>

@@ -291,7 +291,7 @@ class StepProgressController extends Controller
             try {
                 $response = Http::timeout(120)->post(
                     rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
-                    ['question' => $question, 'max_tokens' => 130, 'top_k' => 2]
+                    ['question' => $question, 'max_tokens' => 130, 'top_k' => 2, 'gig' => $step->gig?->slug,]
                 );
             } catch (\Exception $e) {
                 return response()->json(['tip' => null]);

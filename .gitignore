@@ -4,5 +4,16 @@ venv/
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 RAG/sample_docs/
 RAG/chroma_db/
+CLAUDE.md
+backend/vendor/
+backend/node_modules/
+backend/storage/app/private/
+.vscode/
+.idea/
+.claude/settings.local.json
+Thumbs.db
+.DS_Store

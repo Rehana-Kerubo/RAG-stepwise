@@ -16,6 +16,13 @@ class StepSeeder extends Seeder
             'client'      => 'Safaricom M-PESA / POS',
             'description' => 'Onboard an SME merchant onto a POS device and an M-PESA Till or Paybill.',
         ], $this->posSteps());
+
+        $this->seedGig([
+            'slug'        => 'airtel-line-registration',
+            'name'        => 'Airtel Line Registration',
+            'client'      => 'Airtel Kenya',
+            'description' => 'Register a new customer on an Airtel line and, if they want it, activate Airtel Money.',
+        ], $this->airtelSteps());
     }
 
     // Updates in place (matched on gig + step number) so ids and saved progress survive a re-seed.
@@ -56,6 +63,9 @@ class StepSeeder extends Seeder
         ];
     }
 
+    // ------------------------------------------------------------------
+    // Gig 1: POS merchant onboarding
+    // ------------------------------------------------------------------
     private function posSteps(): array
     {
         return [
@@ -190,11 +200,127 @@ class StepSeeder extends Seeder
                     'field'           => 'response',
                     'placeholder'     => 'Choose an option',
                     'options'         => [
-                        ['value' => 'setup_required',  'label' => 'Yes — staff accounts have been set up'],
-                        ['value' => 'not_applicable',  'label' => 'No additional staff accounts are needed'],
+                        ['value' => 'setup_required', 'label' => 'Yes — staff accounts have been set up'],
+                        ['value' => 'not_applicable', 'label' => 'No additional staff accounts are needed'],
                     ],
                 ],
             ],
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // Gig 2: Airtel line registration
+    // Sources: Registration of SIM-cards Regulations 2015, Airtel Kenya and
+    // Airtel Money registration guides.
+    // ------------------------------------------------------------------
+    private function airtelSteps(): array
+    {
+        return [
+            [
+                'title' => 'Confirm Customer Eligibility',
+                'instructions' => 'The customer must be present in person with an original ID, passport or other accepted original document. Photocopies are not accepted. A minor needs a guardian with a valid ID.',
+                'order_number' => 1,
+                'validation_rules' => 'The customer must be present, and an original accepted document must be seen.',
+                'guidance_label' => 'Check the customer can be registered',
+                'input_type' => 'select',
+                'input_config' => [
+                    'submission_type'   => 'eligibility_check',
+                    'label'             => 'Customer eligibility',
+                    'field'             => 'id_type',
+                    'select_label'      => 'Document type seen',
+                    'placeholder'       => 'Choose the document type',
+                    'options'           => [
+                        ['value' => 'kenyan_id',      'label' => 'Kenyan national ID'],
+                        ['value' => 'passport',       'label' => 'Passport'],
+                        ['value' => 'east_african',   'label' => 'East African national ID or passport'],
+                        ['value' => 'alien_card',     'label' => 'Foreign national: alien card'],
+                    ],
+                    'confirm_statement' => 'The customer is here in person and I have seen their original document.',
+                    'response_text'     => 'Customer present in person with original document',
+                ],
+            ],
+
+            [
+                'title' => 'Capture Original ID',
+                'instructions' => 'Take a clear photo of the customer\'s original ID, front and back, using the agent app camera. Do not photograph a photocopy.',
+                'order_number' => 2,
+                'validation_rules' => 'The ID photo must be sharp, complete and readable.',
+                'guidance_label' => 'Photograph the original ID',
+            ] + $this->photo('Original ID', 'Take a clear photo of the customer’s original ID. Make sure the number and name are readable.', 'environment'),
+
+            [
+                'title' => 'Capture Customer Photo',
+                'instructions' => 'Take a clear photo of the customer\'s face using the agent app camera.',
+                'order_number' => 3,
+                'validation_rules' => 'The customer\'s face must be clearly visible.',
+                'guidance_label' => 'Take the customer\'s photo',
+            ] + $this->photo('Customer photo', 'Take a clear photo of the customer’s face.', 'user'),
+
+            [
+                'title' => 'Record ID Number',
+                'instructions' => 'Enter the ID or passport number exactly as it appears on the original document. The name, date of birth, gender and address must also match the document.',
+                'order_number' => 4,
+                'validation_rules' => 'The number must match the original document exactly.',
+                'guidance_label' => 'Type the ID number exactly as printed',
+                'input_type' => 'text',
+                'input_config' => [
+                    'submission_type' => 'id_number',
+                    'label'           => 'ID or passport number',
+                    'placeholder'     => 'Enter the number from the document',
+                    'max_length'      => 30,
+                ],
+            ],
+
+            [
+                'title' => 'Register the SIM',
+                'instructions' => 'Register the SIM against the customer\'s details and enter the mobile number that was registered.',
+                'order_number' => 5,
+                'validation_rules' => 'The registered number must match the SIM given to the customer.',
+                'guidance_label' => 'Register the SIM and note the number',
+                'input_type' => 'text',
+                'input_config' => [
+                    'submission_type' => 'sim_number',
+                    'label'           => 'Registered mobile number',
+                    'placeholder'     => 'Enter the Airtel number',
+                    'max_length'      => 20,
+                ],
+            ],
+
+            [
+                'title' => 'Customer Verifies Registration',
+                'instructions' => 'Ask the customer to dial *106#, choose their ID type and enter their ID number. They will get an SMS listing the numbers registered under that ID.',
+                'order_number' => 6,
+                'validation_rules' => 'The new number must appear in the customer\'s SMS.',
+                'guidance_label' => 'Have the customer check the number with *106#',
+            ] + $this->confirm('Registration check', 'The customer checked with *106# and the new number appears under their ID.'),
+
+            [
+                'title' => 'Activate Airtel Money',
+                'instructions' => 'If the customer is 18 or older and wants Airtel Money, check the ID matches the registration and start the account. The customer activates on their phone and sets their own 4-digit PIN. Never enter or see the PIN.',
+                'order_number' => 7,
+                'validation_rules' => 'The customer must set their own PIN, or decline Airtel Money.',
+                'guidance_label' => 'Activate Airtel Money if the customer wants it',
+                'input_type' => 'select',
+                'input_config' => [
+                    'submission_type' => 'airtel_money',
+                    'label'           => 'Airtel Money',
+                    'description'     => 'Did the customer activate Airtel Money?',
+                    'field'           => 'response',
+                    'placeholder'     => 'Choose an option',
+                    'options'         => [
+                        ['value' => 'activated', 'label' => 'Yes. The customer activated it and set their own PIN'],
+                        ['value' => 'declined',  'label' => 'No. The customer does not want Airtel Money'],
+                    ],
+                ],
+            ],
+
+            [
+                'title' => 'Confirm No Fees Charged',
+                'instructions' => 'Tell the customer that registration is free and make sure no money was taken. Anyone asked for a fee can report it to Airtel customer care on 100.',
+                'order_number' => 8,
+                'validation_rules' => 'The customer must not have been charged.',
+                'guidance_label' => 'Confirm registration was free',
+            ] + $this->confirm('No fees', 'I told the customer registration is free and did not charge them.'),
         ];
     }
 }

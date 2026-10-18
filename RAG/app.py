@@ -9,7 +9,8 @@ Then it's available at http://localhost:5000
 
 Endpoints:
   GET  /health          -> quick check that the service is up
-  POST /ask              -> { "question": "..." } -> { "answer": "...", "sources": [...] }
+  POST /ask              -> { "question": "...", "gig": "airtel-line-registration" }
+                            -> { "answer": "...", "sources": [...] }
 """
 
 from flask import Flask, request, jsonify
@@ -21,6 +22,7 @@ DB_FOLDER = "chroma_db"
 COLLECTION_NAME = "onboarding_docs"
 OLLAMA_MODEL = "llama3.2:3b"
 TOP_K = 3
+SHARED_GIG = "general"   # documents tagged "general" are available to every gig
 
 SYSTEM_PROMPT = """
 You are StepWise, an AI onboarding assistant helping Sales Agents onboard merchants.
@@ -47,9 +49,18 @@ collection = chroma_client.get_collection(COLLECTION_NAME)
 print("Stepwise RAG service ready.")
 
 
-def retrieve(question, top_k=TOP_K):
+def retrieve(question, top_k=TOP_K, gig=None):
     query_embedding = embed_model.encode([question]).tolist()
-    results = collection.query(query_embeddings=query_embedding, n_results=top_k)
+
+    # Only search this gig's documents (plus any shared ones), so an Airtel
+    # question never pulls POS chunks and the other way round.
+    where = {"gig": {"$in": [gig, SHARED_GIG]}} if gig else None
+
+    results = collection.query(
+        query_embeddings=query_embedding,
+        n_results=top_k,
+        where=where,
+    )
     chunks = results["documents"][0]
     sources = [meta["source"] for meta in results["metadatas"][0]]
     return chunks, sources
@@ -133,6 +144,7 @@ def ask():
     data = request.get_json(silent=True) or {}
     question = data.get("question", "").strip()
     step = data.get("step")
+    gig = data.get("gig")
 
     max_tokens = data.get("max_tokens")
     max_tokens = min(max_tokens, 400) if max_tokens else None
@@ -141,7 +153,7 @@ def ask():
     if not question:
         return jsonify({"error": "Missing 'question' in request body"}), 400
 
-    chunks, sources = retrieve(question, top_k)
+    chunks, sources = retrieve(question, top_k, gig)
     prompt = build_prompt(question, chunks, step=step)
     answer = ask_ollama(prompt, max_tokens)
 
