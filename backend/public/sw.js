@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stepwise-v2';
+const CACHE_NAME = 'stepwise-v4';
 const SHELL = ['/chat', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // Install: cache the app shell
@@ -19,12 +19,12 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first, fall back to cache. API calls are never cached.
+// Fetch: network-first, fall back to cache. API and wizard data calls are never cached.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  if (req.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+  if (req.method !== 'GET' || url.pathname.startsWith('/api/') || url.pathname.startsWith('/wizard/')) return;
 
   event.respondWith(
     fetch(req)

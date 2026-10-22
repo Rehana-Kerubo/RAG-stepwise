@@ -19,6 +19,9 @@ class ChatController extends Controller
             'question'   => 'required|string',
         ]);
 
+        // The agent may only ask about their own onboarding (404 otherwise).
+        $session = OnboardingSession::ownedBy($request->user())->findOrFail($validated['session_id']);
+
         // Call the Flask RAG service
         $step = null;
 
@@ -31,7 +34,7 @@ class ChatController extends Controller
         rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
         [
             'question' => $validated['question'],
-            'gig' => \App\Models\OnboardingSession::find($validated['session_id'])->gig?->slug,
+            'gig' => $session->gig?->slug,
          ]
     );
     } catch (\Illuminate\Http\Client\ConnectionException $e) {

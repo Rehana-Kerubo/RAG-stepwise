@@ -7,9 +7,12 @@
     class="mx-auto min-h-[100dvh] max-w-[480px] bg-counter px-5 sm:shadow-xl"
     style="padding-top: calc(env(safe-area-inset-top) + 20px); padding-bottom: calc(env(safe-area-inset-bottom) + 28px);">
 
-    <a href="{{ url('/agent') }}" class="text-sm font-semibold text-cobalt-deep">Switch agent</a>
+    <form method="POST" action="{{ url('/logout') }}" class="flex justify-end">
+        @csrf
+        <button type="submit" class="text-sm font-semibold text-cobalt-deep">Log out</button>
+    </form>
 
-    <h1 class="mt-3 text-[30px] font-extrabold leading-[1.08] tracking-tight">{{ $agent->name }}</h1>
+    <h1 class="mt-1 text-[30px] font-extrabold leading-[1.08] tracking-tight">{{ $agent->name }}</h1>
     <p class="mt-1 text-[15px] text-muted">{{ $agent->region ?? 'No region set' }}</p>
 
     <!-- Summary -->
@@ -29,7 +32,7 @@
     </div>
 
     <!-- Start a new onboarding: choose the gig first -->
-    <form method="POST" action="{{ url('/agent/' . $agent->id . '/sessions') }}" class="mt-6">
+    <form method="POST" action="{{ url('/agent/sessions') }}" class="mt-6">
         @csrf
 
         <h2 class="text-[15px] font-semibold">Start a new onboarding</h2>

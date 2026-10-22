@@ -32,4 +32,13 @@ class OnboardingSession extends Model
     {
     return $this->belongsTo(Gig::class);
     }
+
+    /**
+     * Only the sessions that belong to this user's agent.
+     * Use with findOrFail(): another agent's session gives a 404.
+     */
+    public function scopeOwnedBy($query, User $user)
+    {
+        return $query->where('agent_id', $user->agent_id);
+    }
 }
