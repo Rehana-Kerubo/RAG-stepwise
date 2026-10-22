@@ -20,7 +20,7 @@ class StepProgressController extends Controller
      */
     public function index(Request $request, $sessionId)
     {
-        $session = OnboardingSession::findOrFail($sessionId);
+        $session = OnboardingSession::ownedBy($request->user())->findOrFail($sessionId);
 
         $steps = Step::where('gig_id', $session->gig_id)
             ->orderBy('order_number')
@@ -120,7 +120,7 @@ class StepProgressController extends Controller
      */
     public function submit(Request $request, $sessionId, $stepId)
     {
-        $session = OnboardingSession::findOrFail($sessionId);
+        $session = OnboardingSession::ownedBy($request->user())->findOrFail($sessionId);
         $step = Step::findOrFail($stepId);
 
         // The step must belong to the gig this session is running.

@@ -11,10 +11,13 @@
             <p class="mt-1 text-[15px] text-muted">Onboardings and alerts across all agents.</p>
         </div>
 
-        <a href="{{ url('/agent') }}"
-           class="rounded-xl border border-hairline bg-slip px-4 py-2.5 text-sm font-semibold">
-            Agent view
-        </a>
+        <form method="POST" action="{{ url('/logout') }}">
+            @csrf
+            <button type="submit"
+                    class="rounded-xl border border-hairline bg-slip px-4 py-2.5 text-sm font-semibold">
+                Log out
+            </button>
+        </form>
     </div>
 
     <!-- Gig filter -->

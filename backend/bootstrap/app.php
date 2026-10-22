@@ -13,10 +13,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'role' => \App\Http\Middleware\EnsureRole::class,
+        ]);
+
+        // Not logged in: go to the login page. Already logged in: go to your own home.
+        $middleware->redirectGuestsTo('/');
+        $middleware->redirectUsersTo(fn (Request $request) => $request->user()->homeUrl());
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // The wizard's endpoints get JSON errors (401, 419, 422) instead of an HTML redirect.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
+            fn (Request $request) => $request->is('api/*') || $request->is('wizard/*') || $request->expectsJson(),
         );
     })->create();

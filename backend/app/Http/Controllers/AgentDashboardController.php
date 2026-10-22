@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Agent;
 use App\Models\Gig;
 use App\Models\OnboardingSession;
 use App\Models\Step;
@@ -12,25 +11,12 @@ use Illuminate\Http\Request;
 class AgentDashboardController extends Controller
 {
     /**
-     * "Who is using the app?" screen. There is no login in the demo,
-     * so the agent is chosen from a list.
+     * The logged-in agent's onboardings, with progress and open alerts.
      */
-    public function index()
+    public function show(Request $request)
     {
         SessionStatus::reconcile();
-        $agents = Agent::where('status', 'active')
-            ->orderBy('name')
-            ->get();
-
-        return view('agent.select', compact('agents'));
-    }
-
-    /**
-     * One agent's onboardings, with progress and open alerts.
-     */
-    public function show($agentId)
-    {
-        $agent = Agent::findOrFail($agentId);
+        $agent = $request->user()->agent;
 
         // How many steps each gig has, so every session's ruler matches its own gig.
         $stepCounts = Step::selectRaw('gig_id, COUNT(*) as total')
@@ -60,11 +46,21 @@ class AgentDashboardController extends Controller
     }
 
     /**
-     * Start a new onboarding of the chosen gig for this agent and open it.
+     * Open the wizard for one of this agent's own onboardings.
      */
-    public function startSession(Request $request, $agentId)
+    public function onboarding(Request $request, $sessionId)
     {
-        $agent = Agent::findOrFail($agentId);
+        $session = OnboardingSession::ownedBy($request->user())->findOrFail($sessionId);
+
+        return view('chat', ['sessionId' => $session->id]);
+    }
+
+    /**
+     * Start a new onboarding of the chosen gig for the logged-in agent and open it.
+     */
+    public function startSession(Request $request)
+    {
+        $agent = $request->user()->agent;
 
         $validated = $request->validate([
             'gig_id' => ['required', 'exists:gigs,id'],

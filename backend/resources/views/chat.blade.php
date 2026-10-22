@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>StepWise</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#F2F3EF">
@@ -135,7 +136,7 @@
 
         <div class="flex items-center justify-between">
             <a id="back-link"
-               href="{{ isset($agentId) ? url('/agent/' . $agentId) : url('/agent') }}"
+               href="{{ url('/agent') }}"
                class="flex items-center gap-1.5"
                aria-label="Back to dashboard">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -345,7 +346,9 @@
     // ============================================================
 
     const SESSION_ID = {{ $sessionId ?? 3 }};
-    const DASHBOARD_URL = "{{ isset($agentId) ? url('/agent/' . $agentId) : url('/agent') }}";
+    const DASHBOARD_URL = "{{ url('/agent') }}";
+    // Laravel rejects POSTs without this token (CSRF protection).
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
     const STEPS_CACHE_KEY = 'stepwise_steps_' + SESSION_ID;
 
     let steps = [];
@@ -687,7 +690,7 @@
 
         try {
 
-            response = await fetch(`/api/sessions/${SESSION_ID}/steps`);
+            response = await fetch(`/wizard/sessions/${SESSION_ID}/steps`);
 
         } catch (networkError) {
 
@@ -1180,12 +1183,13 @@
     function sendSubmission(stepId, payload) {
 
         return fetch(
-            `/api/sessions/${SESSION_ID}/steps/${stepId}/submit`,
+            `/wizard/sessions/${SESSION_ID}/steps/${stepId}/submit`,
             {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
                 },
                 body: JSON.stringify({
                     submission_data: payload
@@ -1461,7 +1465,7 @@
         try {
 
             const response = await fetch(
-                `/api/steps/${step.id}/guidance`,
+                `/wizard/steps/${step.id}/guidance`,
                 { headers: { 'Accept': 'application/json' } }
             );
 
@@ -1635,11 +1639,12 @@
 
                 const currentStep = steps[currentStepIndex];
 
-                response = await fetch('/api/ask', {
+                response = await fetch('/wizard/ask', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN
                     },
                     body: JSON.stringify({
                         session_id: SESSION_ID,
