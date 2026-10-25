@@ -32,6 +32,19 @@
         </div>
     </div>
 
+    <!-- Step difficulty insight -->
+    <a href="{{ url('/manager/insights' . ($selectedGig ? '?gig=' . $selectedGig->slug : '')) }}"
+       class="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-ink p-4 text-white active:opacity-90">
+        <div>
+            <div class="text-[16px] font-bold">Step difficulty</div>
+            <div class="text-sm text-white/75">See which step of each gig confuses agents most.</div>
+        </div>
+        <svg class="shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18l6-6-6-6"/>
+        </svg>
+    </a>
+
     <!-- All onboardings -->
     <h2 class="mt-10 text-[18px] font-bold">All onboardings</h2>
 

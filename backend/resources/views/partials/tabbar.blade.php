@@ -14,7 +14,7 @@
 
     if (auth()->user()->isManager()) {
         $tabs = [
-            ['url' => '/manager', 'label' => 'Overview', 'icon' => 'home', 'active' => request()->is('manager', 'manager/sessions/*')],
+            ['url' => '/manager', 'label' => 'Overview', 'icon' => 'home', 'active' => request()->is('manager', 'manager/sessions/*', 'manager/insights')],
             ['url' => '/manager/agents', 'label' => 'Agents', 'icon' => 'users', 'active' => request()->is('manager/agents*')],
             ['url' => '/manager/alerts', 'label' => 'Alerts', 'icon' => 'bell', 'active' => request()->is('manager/alerts'),
              'badge' => \App\Models\Alert::where('is_resolved', false)->count()],

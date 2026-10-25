@@ -55,9 +55,15 @@ class AgentDashboardController extends Controller
      */
     public function onboarding(Request $request, $sessionId)
     {
-        $session = OnboardingSession::ownedBy($request->user())->findOrFail($sessionId);
+        $session = OnboardingSession::ownedBy($request->user())->with('gig')->findOrFail($sessionId);
 
-        return view('chat', ['sessionId' => $session->id]);
+        return view('chat', [
+            'sessionId' => $session->id,
+            // For the completion card at the end of the wizard
+            'gigName' => $session->gig?->name ?? 'Onboarding',
+            'startedAt' => $session->started_at ? \Carbon\Carbon::parse($session->started_at)->toIso8601String() : null,
+            'completedAt' => $session->completed_at ? \Carbon\Carbon::parse($session->completed_at)->toIso8601String() : null,
+        ]);
     }
 
     /**

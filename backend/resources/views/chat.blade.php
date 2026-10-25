@@ -353,6 +353,9 @@
             </p>
         </div>
 
+        <!-- Suggested questions for the current step (tap to ask) -->
+        <div id="chat-chips" class="flex gap-2 overflow-x-auto px-3 pb-2 pt-1"></div>
+
         <form
             id="chat-form"
             class="flex gap-2 border-t border-hairline p-3"
@@ -385,6 +388,10 @@
     // ============================================================
 
     const SESSION_ID = {{ $sessionId ?? 3 }};
+    // For the completion card (completedAt is empty until the onboarding is finished)
+    const GIG_NAME = @json($gigName ?? 'Onboarding');
+    const STARTED_AT = @json($startedAt ?? null);
+    const COMPLETED_AT = @json($completedAt ?? null);
     const DASHBOARD_URL = "{{ url('/agent') }}";
     // Laravel rejects POSTs without this token (CSRF protection).
     const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
@@ -1151,6 +1158,8 @@
         // render the input field for the current step
         renderStepInput(step);
 
+        renderChips(step);
+
 
         updateNextLabel();
 
@@ -1188,10 +1197,10 @@
 
         } else {
 
-            stepCounter.textContent = 'Onboarding complete';
-            stepTitle.textContent = 'Merchant onboarding complete';
+            stepCounter.textContent = 'All steps saved';
+            stepTitle.textContent = 'Onboarding complete';
             stepInstructions.textContent =
-                'You have reached the end of the onboarding workflow.';
+                'Well done. Every step of this onboarding has been saved.';
             guidanceLabel.textContent =
                 'All onboarding steps have been submitted.';
             nextButton.textContent = 'Back to dashboard';
@@ -1199,13 +1208,70 @@
         }
 
         validationHint.textContent = '';
-        stepInputContainer.innerHTML = '';
-        stepInputLabel.textContent = 'Submission';
+        stepInputContainer.innerHTML = pending ? '' : completionCard();
+        stepInputLabel.textContent = pending ? 'Submission' : 'Summary';
         stepInput = null;
+
+        renderChips(null);
 
         nextButton.disabled = pending > 0;
 
         renderStepsList();
+
+    }
+
+    // Summary card: gig, date, number of steps and time taken
+    function completionCard() {
+
+        const started = STARTED_AT ? new Date(STARTED_AT) : null;
+        // Finished just now in this screen, or earlier according to the server
+        const finished = COMPLETED_AT ? new Date(COMPLETED_AT) : new Date();
+
+        const date = finished.toLocaleDateString('en-GB', {
+            day: 'numeric', month: 'short', year: 'numeric'
+        });
+
+        let taken = 'Unknown';
+
+        if (started) {
+            const minutes = Math.max(1, Math.round((finished - started) / 60000));
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            taken = days >= 1 ? `${days} ${days === 1 ? 'day' : 'days'}`
+                : hours >= 1 ? `${hours} h ${minutes % 60} min`
+                : `${minutes} min`;
+        }
+
+        const stat = (value, label) => `
+            <div class="rounded-xl bg-counter p-3">
+                <dt class="text-xs text-muted">${label}</dt>
+                <dd class="mt-0.5 text-[15px] font-bold leading-snug">${esc(value)}</dd>
+            </div>
+        `;
+
+        return `
+            <div class="rounded-2xl border border-ledger/30 bg-slip p-5 text-center">
+                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-ledger text-white">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12l5 5L20 7"/>
+                    </svg>
+                </div>
+
+                <span class="mt-3 inline-block rounded-full bg-ledger-soft px-3 py-1 text-xs font-bold uppercase tracking-wide text-ledger">
+                    Completed
+                </span>
+
+                <div class="mt-2 text-[20px] font-extrabold leading-snug">${esc(GIG_NAME)}</div>
+
+                <dl class="mt-4 grid grid-cols-3 gap-2 text-left">
+                    ${stat(date, 'Date')}
+                    ${stat(steps.length, 'Steps')}
+                    ${stat(taken, 'Time taken')}
+                </dl>
+            </div>
+        `;
 
     }
 
@@ -1641,6 +1707,51 @@
     const chatEmpty =
         document.getElementById('chat-empty');
 
+
+    // Three short questions built from the step's own text (its guidance label
+    // or title). Only step text is used, never anything the agent entered.
+    function suggestedQuestions(step) {
+
+        const action = (step.guidance_label || step.title || '').trim().replace(/\.$/, '');
+        const lower = action.charAt(0).toLowerCase() + action.slice(1);
+
+        return [
+            `How do I ${lower}?`,
+            `What do I need for "${step.title}"?`,
+            `What if something goes wrong at "${step.title}"?`
+        ];
+
+    }
+
+    function renderChips(step) {
+
+        const chips = document.getElementById('chat-chips');
+
+        chips.innerHTML = '';
+
+        if (!step) return;
+
+        suggestedQuestions(step).forEach(question => {
+
+            const chip = document.createElement('button');
+
+            chip.type = 'button';
+            chip.className =
+                'shrink-0 whitespace-nowrap rounded-full border border-cobalt/30 bg-cobalt-soft px-3 text-sm font-semibold text-cobalt-deep';
+            chip.textContent = question;
+
+            // Send it through the normal chat form, so it uses the same /ask flow
+            chip.addEventListener('click', () => {
+                if (input.disabled) return; // an answer is still on its way
+                input.value = question;
+                form.requestSubmit();
+            });
+
+            chips.appendChild(chip);
+
+        });
+
+    }
 
     function addMessage(text, sender) {
 

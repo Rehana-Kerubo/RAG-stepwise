@@ -11,6 +11,7 @@ use App\Models\Step;
 use App\Models\StepProgress;
 use App\Services\AlertRules;
 use App\Services\SessionStatus;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ManagerDashboardController extends Controller
@@ -185,6 +186,89 @@ class ManagerDashboardController extends Controller
         $alert->save();
 
         return redirect()->back();
+    }
+
+    /**
+     * Step difficulty for one gig: per step, how many AI questions were asked,
+     * how many alerts it caused and how long agents typically spend on it.
+     * Uses only chat_logs, alerts and step_progress.
+     */
+    public function insights(Request $request)
+    {
+        $gigs = Gig::has('steps')->orderBy('name')->get();
+        $gig = $gigs->firstWhere('slug', $request->query('gig')) ?? $gigs->first();
+
+        if (! $gig) {
+            return view('manager.insights', ['gigs' => $gigs, 'gig' => null, 'rows' => collect(), 'worst' => null]);
+        }
+
+        $steps = Step::where('gig_id', $gig->id)->orderBy('order_number')->get();
+
+        $questions = ChatLog::whereIn('step_id', $steps->pluck('id'))
+            ->selectRaw('step_id, COUNT(*) as total')
+            ->groupBy('step_id')
+            ->pluck('total', 'step_id');
+
+        $alerts = Alert::whereIn('step_id', $steps->pluck('id'))
+            ->selectRaw('step_id, COUNT(*) as total')
+            ->groupBy('step_id')
+            ->pluck('total', 'step_id');
+
+        $minutes = $this->typicalMinutesPerStep($steps);
+
+        $rows = $steps->map(fn ($step) => [
+            'step' => $step,
+            'questions' => (int) ($questions[$step->id] ?? 0),
+            'alerts' => (int) ($alerts[$step->id] ?? 0),
+            'minutes' => $minutes[$step->id] ?? null,
+        ]);
+
+        // Hardest step: the most AI questions + alerts; the longer time breaks a tie.
+        $worst = $rows
+            ->sort(fn ($a, $b) => [$b['questions'] + $b['alerts'], $b['minutes'] ?? 0]
+                              <=> [$a['questions'] + $a['alerts'], $a['minutes'] ?? 0])
+            ->first();
+
+        // No data at all: nothing to call "hardest".
+        if ($worst && $worst['questions'] + $worst['alerts'] === 0 && ! $worst['minutes']) {
+            $worst = null;
+        }
+
+        return view('manager.insights', compact('gigs', 'gig', 'rows', 'worst'));
+    }
+
+    /**
+     * Typical minutes spent on each step, as [step_id => minutes].
+     *
+     * step_progress.started_at is written when the step is submitted, so time on a
+     * step is measured from the PREVIOUS step's save (or the onboarding's start, for
+     * the first step) to this step's save. The median is used, not the mean, so one
+     * agent who left a step open overnight does not distort the number.
+     */
+    private function typicalMinutesPerStep($steps)
+    {
+        $orderOf = $steps->pluck('order_number', 'id');
+
+        $bySession = StepProgress::whereIn('step_id', $steps->pluck('id'))
+            ->whereNotNull('completed_at')
+            ->with('session:id,started_at,created_at')
+            ->get()
+            ->groupBy('session_id');
+
+        $durations = [];
+
+        foreach ($bySession as $progress) {
+            $session = $progress->first()->session;
+            $previous = Carbon::parse($session->started_at ?? $session->created_at);
+
+            foreach ($progress->sortBy(fn ($p) => $orderOf[$p->step_id]) as $p) {
+                $saved = Carbon::parse($p->completed_at);
+                $durations[$p->step_id][] = $previous->diffInSeconds($saved, true) / 60;
+                $previous = $saved;
+            }
+        }
+
+        return collect($durations)->map(fn ($list) => round(collect($list)->median(), 1));
     }
 
     /**
