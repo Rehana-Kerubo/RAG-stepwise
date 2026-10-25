@@ -18,6 +18,11 @@ class EnsureRole
             abort(403, 'You do not have access to this page.');
         }
 
+        // An agent the manager marked inactive is stopped even if already logged in.
+        if ($role === 'agent' && $request->user()->agent?->status === 'inactive') {
+            abort(403, 'Your agent account is inactive. Ask your manager.');
+        }
+
         return $next($request);
     }
 }

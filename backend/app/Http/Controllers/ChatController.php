@@ -22,7 +22,9 @@ class ChatController extends Controller
         // The agent may only ask about their own onboarding (404 otherwise).
         $session = OnboardingSession::ownedBy($request->user())->findOrFail($validated['session_id']);
 
-        $step = $validated['step_id'] ? \App\Models\Step::find($validated['step_id']) : null;
+        // step_id may be missing from the request entirely, not only null
+        $stepId = $validated['step_id'] ?? null;
+        $step = $stepId ? \App\Models\Step::find($stepId) : null;
 
         // The step must be part of this onboarding's gig, or the question would be
         // logged (and counted for alerts and step difficulty) against the wrong gig.
@@ -35,7 +37,7 @@ class ChatController extends Controller
         // Call the Flask RAG service
     try {
         $response = Http::timeout(120)->post(
-        rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',
+        config('services.flask.url') . '/ask',
         [
             'question' => $validated['question'],
             'gig' => $session->gig?->slug,

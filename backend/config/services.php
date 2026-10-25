@@ -42,4 +42,10 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    // The Flask RAG service (RAG/app.py). Read with config('services.flask.url'),
+    // never env() in code, so it still works after `php artisan config:cache`.
+    'flask' => [
+        'url' => rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/'),
+    ],
+
 ];

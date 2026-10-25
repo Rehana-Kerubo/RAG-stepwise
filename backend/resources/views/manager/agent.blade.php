@@ -25,6 +25,28 @@
         </p>
     @endif
 
+    <!-- Active / inactive -->
+    @php $active = $agent->status === 'active'; @endphp
+
+    <form method="POST" action="{{ url('/manager/agents/' . $agent->id . '/status') }}"
+          class="mt-4 flex items-center justify-between gap-3 rounded-2xl {{ $active ? 'bg-slip' : 'border border-red-200 bg-red-50' }} p-4">
+        @csrf
+        <input type="hidden" name="status" value="{{ $active ? 'inactive' : 'active' }}">
+
+        <div class="min-w-0">
+            <div class="text-[15px] font-semibold">{{ $active ? 'Active' : 'Inactive' }}</div>
+            <div class="text-sm leading-snug text-muted">
+                {{ $active ? 'Can log in and start assigned gigs.' : 'Cannot log in. Their history is kept.' }}
+            </div>
+        </div>
+
+        <button type="submit"
+                class="shrink-0 rounded-xl border px-3 text-sm font-semibold {{ $active ? 'border-hairline bg-counter text-red-700' : 'border-transparent bg-ledger text-white' }}"
+                @if ($active) onclick="return confirm(@js('Mark ' . $agent->name . ' inactive? They will not be able to log in.'))" @endif>
+            {{ $active ? 'Mark inactive' : 'Mark active' }}
+        </button>
+    </form>
+
     <h2 class="mt-7 text-[15px] font-semibold">Gigs</h2>
     <p class="text-sm text-muted">Switch a gig on to let {{ $agent->name }} start it.</p>
 

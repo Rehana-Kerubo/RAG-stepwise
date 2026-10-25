@@ -38,7 +38,7 @@ The AI is advisory only: it never validates or blocks a step, and photos, ID num
 
 **Manager** (tabs: Overview, Agents, Alerts, Profile)
 - Overview of all onboardings with a gig filter: status, progress against that gig's own steps, last activity.
-- Agents: tap an agent to switch gigs on or off for them and see their progress per gig.
+- Agents: add an agent (name, phone, region and the Google email they sign in with), switch gigs on or off for each agent, see their progress per gig, and mark an agent inactive (they can no longer log in; their history is kept).
 - Alerts for agents who may need help (see below), with a "mark resolved" action.
 - Step difficulty: per gig, a bar per step for AI questions asked, alerts raised and typical time spent, with the hardest step highlighted.
 - Detail page per onboarding: each step, what was submitted (photos and codes are never shown), and the questions the agent asked the AI.
@@ -52,7 +52,7 @@ Defined in `backend/app/Services/AlertRules.php`:
 | Repeated help | The agent asks the AI about the same step several times | 3 questions |
 | Stalled onboarding | An unfinished onboarding has no activity | 30 minutes |
 
-The values are constants at the top of the file.
+The values are constants at the top of the file. The stalled rule runs every 5 minutes through Laravel's scheduler (`routes/console.php`), and also whenever a manager opens Overview or Alerts.
 
 ## Tech stack
 
@@ -147,13 +147,27 @@ Start these three, each in its own terminal:
 ollama serve                      (if Ollama is not already running)
 python app.py                     (in RAG/, listens on port 5000)
 php artisan serve                 (in backend/, listens on port 8000)
+php artisan schedule:work         (in backend/, checks for stalled onboardings every 5 minutes)
 ```
+
+On a server, use the usual cron line for `php artisan schedule:run` instead of `schedule:work`.
 
 Open `http://localhost:8000`. After login, agents land on `/agent` and managers on `/manager`. On a local install the demo accounts are `manager@stepwise.test`, `agent<id>@stepwise.test`, and (after `DemoSeeder`) `grace@`, `kevin@` and `faith@stepwise.test`, all with password `password`.
 
 To open the app on a phone, run `php artisan serve --host=0.0.0.0` and use the laptop's IP address on the same network. Installing the app and offline mode need HTTPS, so they work on the phone only through an HTTPS tunnel or a deployed server. On the laptop, `localhost` counts as secure. On an iPhone, install with Share, then Add to Home Screen.
 
 After changing anything in the front end, bump `CACHE_NAME` in `public/sw.js` and hard refresh.
+
+Before a demo, run `php artisan db:seed --class=DemoSeeder` again so the demo onboardings are dated from now.
+
+## Tests
+
+```
+cd backend
+php artisan test
+```
+
+The feature tests in `backend/tests/Feature` run on a temporary in-memory SQLite database (see `phpunit.xml`), so they never touch the real data, and the AI service is faked. They check that every page needs the right login and role, that agents only reach their own onboardings, gig assignment (including on the server), steps saved in order and completion, that saving works when the AI is down, the AI question rules (gig, length, rate limit, repeated-help alert), the step difficulty view, adding and deactivating agents, and Google login.
 
 ## Endpoints
 
@@ -176,12 +190,14 @@ After changing anything in the front end, bump `CACHE_NAME` in `public/sw.js` an
 | POST | `/wizard/ask` | agent | ask the AI (max 500 characters, 10 a minute), saved in the chat log |
 | GET | `/manager`, `/manager/sessions/{id}` | manager | Overview (`?gig=<slug>` filter) and onboarding detail |
 | GET | `/manager/agents`, `/manager/agents/{id}` | manager | Agents tab and one agent's gigs |
+| GET, POST | `/manager/agents/create`, `/manager/agents` | manager | add an agent and their login |
+| POST | `/manager/agents/{id}/status` | manager | mark an agent `active` or `inactive` |
 | POST | `/manager/agents/{id}/gigs/{gigId}` | manager | assign (`assign=1`) or unassign (`assign=0`) a gig |
 | GET | `/manager/alerts` | manager | Alerts tab (`?gig=<slug>` filter) |
 | POST | `/manager/alerts/{id}/resolve` | manager | mark an alert resolved |
 | GET | `/manager/insights` | manager | step difficulty (`?gig=<slug>`) |
 
-An agent asking for another agent's onboarding gets a 404; the wrong role gets a 403.
+An agent asking for another agent's onboarding gets a 404; the wrong role, or an inactive agent, gets a 403.
 
 **Flask (`RAG/app.py`)**: `GET /health`, `POST /ask` (takes `question` and `gig`).
 
@@ -211,8 +227,8 @@ Photos are stored in `storage/app/private/onboarding/{session}` and only their p
 
 - The AI runs on a small local model on a CPU, so it is slow and its answers depend entirely on the quality of the onboarding documents. It cannot see photos and does not validate anything; validation is done by rules in the backend.
 - The alerts table has no type column, so the rule that raised an alert is recognised from the start of its reason text.
-- The stalled rule is checked when a manager opens Overview or Alerts, not on a schedule.
+- The stalled rule needs `php artisan schedule:work` (or a cron job) to run on its own; without it, it still runs when a manager opens Overview or Alerts.
 - Step times in the step difficulty view are measured between saves. Steps saved offline are timed when they sync.
 - Onboardings do not record who the customer is.
 - In offline mode, AI chat and new tips need a connection.
-- There is one team: every manager sees every agent.
+- There is one team: every manager sees every agent. Agents can be added and deactivated in the app, but not edited or deleted (use tinker for that).

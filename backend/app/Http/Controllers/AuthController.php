@@ -102,6 +102,14 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->isManager() && $user->agent?->status === 'inactive') {
+            Auth::logout();
+
+            return redirect('/')->withErrors([
+                'email' => 'Your agent account is inactive. Ask your manager.',
+            ]);
+        }
+
         // New session id after login, so an old one cannot be reused.
         $request->session()->regenerate();
 

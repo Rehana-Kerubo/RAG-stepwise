@@ -44,7 +44,10 @@ Route::middleware(['auth', 'role:agent'])->group(function () {
 Route::middleware(['auth', 'role:manager'])->group(function () {
     Route::get('/manager', [ManagerDashboardController::class, 'index']);
     Route::get('/manager/agents', [ManagerDashboardController::class, 'agents']);
+    Route::get('/manager/agents/create', [ManagerDashboardController::class, 'createAgent']);
+    Route::post('/manager/agents', [ManagerDashboardController::class, 'storeAgent']);
     Route::get('/manager/agents/{agentId}', [ManagerDashboardController::class, 'agent']);
+    Route::post('/manager/agents/{agentId}/status', [ManagerDashboardController::class, 'setAgentStatus']);
     Route::post('/manager/agents/{agentId}/gigs/{gigId}', [ManagerDashboardController::class, 'assignGig']);
     Route::get('/manager/alerts', [ManagerDashboardController::class, 'alerts']);
     Route::get('/manager/insights', [ManagerDashboardController::class, 'insights']);

@@ -9,10 +9,13 @@ use App\Models\Gig;
 use App\Models\OnboardingSession;
 use App\Models\Step;
 use App\Models\StepProgress;
+use App\Models\User;
 use App\Services\AlertRules;
 use App\Services\SessionStatus;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ManagerDashboardController extends Controller
 {
@@ -96,6 +99,75 @@ class ManagerDashboardController extends Controller
             ->get();
 
         return view('manager.agents', compact('agents'));
+    }
+
+    /**
+     * Form to add a new agent.
+     */
+    public function createAgent()
+    {
+        return view('manager.agent-create');
+    }
+
+    /**
+     * Add an agent and their login. They sign in with Google using this email,
+     * so the password is random and never used.
+     */
+    public function storeAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'phone' => ['required', 'string', 'max:30', 'unique:agents,phone'],
+            'region' => ['nullable', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+        ], [
+            'phone.unique' => 'Another agent already has this phone number.',
+            'email.unique' => 'This email already has a StepWise login.',
+        ]);
+
+        $email = strtolower($validated['email']);
+
+        // Both rows or neither
+        $agent = DB::transaction(function () use ($validated, $email) {
+            $agent = Agent::create([
+                'name' => $validated['name'],
+                'phone' => $validated['phone'],
+                'region' => $validated['region'] ?? null,
+                'status' => 'active',
+            ]);
+
+            User::create([
+                'name' => $validated['name'],
+                'email' => $email,
+                'password' => Str::random(40),
+                'role' => 'agent',
+                'agent_id' => $agent->id,
+            ]);
+
+            return $agent;
+        });
+
+        return redirect('/manager/agents/' . $agent->id)
+            ->with('status', "{$agent->name} added. They can sign in with Google as {$email}. Now switch on their gigs.");
+    }
+
+    /**
+     * Mark an agent active or inactive. Inactive agents cannot log in or use
+     * agent pages (see EnsureRole); their onboardings and history are kept.
+     */
+    public function setAgentStatus(Request $request, $agentId)
+    {
+        $agent = Agent::findOrFail($agentId);
+
+        $validated = $request->validate([
+            'status' => ['required', 'in:active,inactive'],
+        ]);
+
+        $agent->status = $validated['status'];
+        $agent->save();
+
+        return redirect('/manager/agents/' . $agent->id)
+            ->with('status', "{$agent->name} is now {$agent->status}.");
     }
 
     /**

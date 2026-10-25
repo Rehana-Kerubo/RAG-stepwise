@@ -6,8 +6,17 @@
 <div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 sm:px-8 sm:shadow-xl lg:px-12"
      style="padding-top: calc(env(safe-area-inset-top) + 24px); padding-bottom: calc(env(safe-area-inset-bottom) + 96px);">
 
-    <h1 class="text-[30px] font-extrabold leading-[1.08] tracking-tight">Agents</h1>
-    <p class="mt-1 text-[15px] text-muted">Tap an agent to assign gigs.</p>
+    <div class="flex items-start justify-between gap-3">
+        <div>
+            <h1 class="text-[30px] font-extrabold leading-[1.08] tracking-tight">Agents</h1>
+            <p class="mt-1 text-[15px] text-muted">Tap an agent to assign gigs.</p>
+        </div>
+
+        <a href="{{ url('/manager/agents/create') }}"
+           class="tap inline-flex shrink-0 items-center gap-1 rounded-xl bg-cobalt px-4 text-[15px] font-bold text-white">
+            <span aria-hidden="true" class="text-[20px] leading-none">+</span> Add agent
+        </a>
+    </div>
 
     <div class="mt-5 space-y-2">
         @forelse ($agents as $agent)
