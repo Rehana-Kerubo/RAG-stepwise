@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="StepWise">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,6 +50,26 @@
             font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
         }
         button, label, select { touch-action: manipulation; }
+
+        /* Feel like an app: no text selection or long-press menu on controls */
+        button, a, label {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Apple's minimum touch target is 44px */
+        button, select { min-height: 44px; }
+
+        /* Grey placeholder blocks shown while the steps load */
+        .skeleton {
+            display: block;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #E4E6E1 25%, #EEF0EB 50%, #E4E6E1 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.2s linear infinite;
+        }
+        @keyframes shimmer { to { background-position: -200% 0; } }
 
         #app { min-height: 100vh; min-height: 100dvh; }
 
@@ -114,6 +134,7 @@
 
         @media (prefers-reduced-motion: reduce) {
             .sheet, .sheet.open, #scrim, #toast { transition: none; }
+            .skeleton { animation: none; }
         }
 
         button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
@@ -137,7 +158,7 @@
         <div class="flex items-center justify-between">
             <a id="back-link"
                href="{{ url('/agent') }}"
-               class="flex items-center gap-1.5"
+               class="-ml-1 flex min-h-[44px] items-center gap-1.5 pr-2"
                aria-label="Back to dashboard">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -149,9 +170,9 @@
             <button
                 id="steps-open"
                 type="button"
-                class="flex h-10 items-center gap-2 rounded-xl border border-hairline bg-slip px-3 text-sm font-semibold"
+                class="flex h-11 items-center gap-2 rounded-xl border border-hairline bg-slip px-3 text-sm font-semibold"
                 aria-label="Show all steps">
-                <span id="progress-text">0 of 0 saved</span>
+                <span id="progress-text">Loading</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
@@ -161,7 +182,16 @@
 
         <div id="ruler" class="mt-3 flex items-center gap-1" aria-hidden="true"></div>
 
-        <p id="step-counter" class="mt-2 text-sm font-medium text-muted">Loading...</p>
+        <div class="mt-2 flex items-center justify-between gap-2">
+            <p id="step-counter" class="text-sm font-medium text-muted">
+                <span class="skeleton h-4 w-24" aria-hidden="true"></span>
+                <span class="sr-only">Loading</span>
+            </p>
+
+            <!-- Steps saved on this device that have not reached the server yet -->
+            <span id="sync-chip"
+                  class="hidden shrink-0 rounded-full bg-amber px-3 py-1 text-xs font-bold text-ink"></span>
+        </div>
     </header>
 
     <!-- Offline / sync status (hidden when there is nothing to report) -->
@@ -176,7 +206,9 @@
         <h2
             id="step-title"
             class="text-[30px] font-extrabold leading-[1.08] tracking-tight">
-            Loading step...
+            <span class="skeleton h-8 w-4/5" aria-hidden="true"></span>
+            <span class="skeleton mt-2 h-8 w-1/2" aria-hidden="true"></span>
+            <span class="sr-only">Loading step</span>
         </h2>
 
         <section class="mt-5">
@@ -184,14 +216,18 @@
             <p
                 id="step-instructions"
                 class="mt-2 border-l-[3px] border-cobalt pl-3 text-[16px] leading-relaxed text-ink/80">
-                Loading instructions...
+                <span class="skeleton h-4 w-full" aria-hidden="true"></span>
+                <span class="skeleton mt-2 h-4 w-11/12" aria-hidden="true"></span>
+                <span class="skeleton mt-2 h-4 w-2/3" aria-hidden="true"></span>
             </p>
         </section>
 
         <section class="mt-7">
             <h3 id="step-input-label" class="mb-2 text-[15px] font-semibold">Step submission</h3>
 
-            <div id="step-input-container"></div>
+            <div id="step-input-container">
+                <span class="skeleton h-14 w-full rounded-xl" aria-hidden="true"></span>
+            </div>
 
             <p id="validation-hint" class="mt-2 text-sm leading-snug text-muted"></p>
             <p id="form-error" role="alert" class="mt-2 hidden text-sm font-semibold text-red-700"></p>
@@ -203,7 +239,8 @@
             <p
                 id="guidance-label"
                 class="mt-1 whitespace-pre-line text-[15px] leading-snug text-ink/80">
-                Guidance for the current step will appear here.
+                <span class="skeleton h-4 w-full" aria-hidden="true"></span>
+                <span class="skeleton mt-2 h-4 w-3/4" aria-hidden="true"></span>
             </p>
 
             <button
@@ -276,14 +313,16 @@
             <div class="flex items-center justify-between px-5 pb-3 pt-3">
                 <h2 id="steps-sheet-title" class="text-xl font-extrabold tracking-tight">All steps</h2>
                 <button data-close type="button"
-                        class="h-10 rounded-xl px-3 text-sm font-semibold text-cobalt-deep">Close</button>
+                        class="h-11 rounded-xl px-3 text-sm font-semibold text-cobalt-deep">Close</button>
             </div>
         </div>
 
         <div id="steps-list"
              class="flex-1 space-y-2 overflow-y-auto px-5"
              style="padding-bottom: calc(env(safe-area-inset-bottom) + 20px);">
-            <div class="text-center text-sm text-muted">Loading steps...</div>
+            <span class="skeleton h-14 w-full rounded-xl" aria-hidden="true"></span>
+            <span class="skeleton h-14 w-full rounded-xl" aria-hidden="true"></span>
+            <span class="skeleton h-14 w-full rounded-xl" aria-hidden="true"></span>
         </div>
     </section>
 
@@ -304,7 +343,7 @@
             <div class="flex items-center justify-between px-5 pb-3 pt-3">
                 <h2 id="chat-title" class="text-xl font-extrabold tracking-tight">Ask StepWise</h2>
                 <button data-close type="button"
-                        class="h-10 rounded-xl px-3 text-sm font-semibold text-cobalt-deep">Close</button>
+                        class="h-11 rounded-xl px-3 text-sm font-semibold text-cobalt-deep">Close</button>
             </div>
         </div>
 
@@ -381,6 +420,7 @@
     const helpButton = document.getElementById('help-button');
 
     const offlineBanner = document.getElementById('offline-banner');
+    const syncChip = document.getElementById('sync-chip');
 
     const stepsOpen = document.getElementById('steps-open');
     const chatOpen = document.getElementById('chat-open');
@@ -651,6 +691,15 @@
 
         const base = 'px-5 py-2.5 text-sm font-medium leading-snug ';
 
+        if (queue.length) {
+            syncChip.textContent = queue.length === 1
+                ? '1 step waiting to sync'
+                : `${queue.length} steps waiting to sync`;
+            syncChip.classList.remove('hidden');
+        } else {
+            syncChip.classList.add('hidden');
+        }
+
         if (stuck) {
 
             offlineBanner.className = base + 'bg-red-100 text-red-800';
@@ -660,9 +709,7 @@
         } else if (!navigator.onLine) {
 
             offlineBanner.className = base + 'border-y border-amber/50 bg-amber-soft text-ink';
-            offlineBanner.textContent =
-                "You're offline. Steps you finish are saved on this device and sync later." +
-                (queue.length ? ` ${queue.length} waiting.` : '');
+            offlineBanner.textContent = "You're offline. Your work will sync later";
 
         } else if (queue.length) {
 
@@ -789,6 +836,10 @@
 
             stepTitle.textContent = 'Steps could not load';
             stepInstructions.textContent = error.message;
+            stepInputContainer.innerHTML = '';
+            stepCounter.textContent = '';
+            guidanceLabel.textContent = '';
+            progressText.textContent = 'Steps';
 
         }
 

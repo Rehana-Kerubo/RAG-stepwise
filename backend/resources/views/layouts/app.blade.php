@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>@yield('title', 'StepWise')</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">    <title>@yield('title', 'StepWise')</title>
 
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#F2F3EF">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="StepWise">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,6 +48,28 @@
             font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
         }
         button, a, label, select { touch-action: manipulation; }
+
+        /* Feel like an app: no text selection or long-press menu on controls */
+        button, a, label, .no-select {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Apple's minimum touch target is 44px */
+        button, select, .tap { min-height: 44px; }
+
+        /* Grey placeholder blocks shown while something loads */
+        .skeleton {
+            display: block;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #E4E6E1 25%, #EEF0EB 50%, #E4E6E1 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.2s linear infinite;
+        }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+        @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
         button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
             outline: 3px solid #2A3EDC;
             outline-offset: 2px;

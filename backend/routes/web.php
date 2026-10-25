@@ -5,6 +5,7 @@ use App\Http\Controllers\AgentDashboardController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ManagerDashboardController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StepProgressController;
 
 // Login (only for people who are not logged in yet)
@@ -21,12 +22,16 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 
+// Profile tab (agents and managers)
+Route::get('/profile', [ProfileController::class, 'show'])->middleware('auth');
+
 // Agent pages and the endpoints the wizard calls
 Route::middleware(['auth', 'role:agent'])->group(function () {
     Route::get('/chat', function () {
         return view('chat');
     });
     Route::get('/agent', [AgentDashboardController::class, 'show']);
+    Route::get('/agent/onboardings', [AgentDashboardController::class, 'onboardings']);
     Route::post('/agent/sessions', [AgentDashboardController::class, 'startSession']);
     Route::get('/onboarding/{sessionId}', [AgentDashboardController::class, 'onboarding']);
 
@@ -39,6 +44,8 @@ Route::middleware(['auth', 'role:agent'])->group(function () {
 // Manager pages
 Route::middleware(['auth', 'role:manager'])->group(function () {
     Route::get('/manager', [ManagerDashboardController::class, 'index']);
+    Route::get('/manager/agents', [ManagerDashboardController::class, 'agents']);
+    Route::get('/manager/alerts', [ManagerDashboardController::class, 'alerts']);
     Route::get('/manager/sessions/{sessionId}', [ManagerDashboardController::class, 'session']);
     Route::post('/manager/alerts/{alertId}/resolve', [ManagerDashboardController::class, 'resolve']);
 });

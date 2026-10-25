@@ -1,5 +1,12 @@
-const CACHE_NAME = 'stepwise-v4';
-const SHELL = ['/chat', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE_NAME = 'stepwise-v5';
+// Pages are cached as they are visited (see fetch below); the shell is only static files.
+const SHELL = [
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
+  '/js/sync-status.js'
+];
 
 // Install: cache the app shell
 self.addEventListener('install', (event) => {

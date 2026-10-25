@@ -3,9 +3,16 @@
 @section('title', 'StepWise: onboarding #' . $session->id)
 
 @section('content')
-<div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 pb-12 pt-7 sm:px-8 sm:shadow-xl lg:px-12 lg:pt-10">
+<div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 sm:px-8 sm:shadow-xl lg:px-12"
+     style="padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: calc(env(safe-area-inset-bottom) + 96px);">
 
-    <a href="{{ url('/manager') }}" class="text-sm font-semibold text-cobalt-deep">Back to dashboard</a>
+    <a href="{{ url('/manager') }}" class="tap -ml-1 inline-flex items-center gap-1 text-sm font-semibold text-cobalt-deep">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+        Overview
+    </a>
 
     @php
         $pill = match ($session->status) {
@@ -54,7 +61,7 @@
                         <form method="POST" action="{{ url('/manager/alerts/' . $alert->id . '/resolve') }}">
                             @csrf
                             <button type="submit"
-                                    class="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">
+                                    class="rounded-xl bg-ink px-3 text-sm font-semibold text-white">
                                 Mark resolved
                             </button>
                         </form>
@@ -158,4 +165,5 @@
     </div>
 
 </div>
+@include('partials.tabbar')
 @endsection

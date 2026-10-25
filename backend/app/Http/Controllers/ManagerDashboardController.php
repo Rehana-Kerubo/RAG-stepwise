@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 class ManagerDashboardController extends Controller
 {
     /**
-     * Overview: summary, open alerts, and every onboarding across agents.
+     * Overview tab: summary and every onboarding across agents.
      * An optional ?gig=<slug> narrows everything to one gig.
      */
     public function index(Request $request)
@@ -36,15 +36,6 @@ class ManagerDashboardController extends Controller
             ->groupBy('gig_id')
             ->pluck('total', 'gig_id');
 
-        $alerts = Alert::with(['session.agent', 'session.gig', 'step'])
-            ->where('is_resolved', false)
-            ->when($selectedGig, fn ($q) => $q->whereHas(
-                'session',
-                fn ($s) => $s->where('gig_id', $selectedGig->id)
-            ))
-            ->orderByDesc('created_at')
-            ->get();
-
         $sessions = OnboardingSession::with(['agent', 'gig'])
             ->when($selectedGig, fn ($q) => $q->where('gig_id', $selectedGig->id))
             ->withCount([
@@ -58,13 +49,48 @@ class ManagerDashboardController extends Controller
         $counts = [
             'in_progress' => $sessions->where('status', 'in_progress')->count(),
             'completed' => $sessions->where('status', 'completed')->count(),
-            'alerts' => $alerts->count(),
+            'alerts' => $this->openAlerts($selectedGig)->count(),
             'agents' => Agent::where('status', 'active')->count(),
         ];
 
         return view('manager.dashboard', compact(
-            'alerts', 'sessions', 'stepTotals', 'counts', 'gigs', 'selectedGig'
+            'sessions', 'stepTotals', 'counts', 'gigs', 'selectedGig'
         ));
+    }
+
+    /**
+     * Alerts tab: open alerts, newest first. Same ?gig=<slug> filter as Overview.
+     */
+    public function alerts(Request $request)
+    {
+        AlertRules::checkStalled();
+
+        $gigs = Gig::orderBy('name')->get();
+        $selectedGig = $gigs->firstWhere('slug', $request->query('gig'));
+
+        $alerts = $this->openAlerts($selectedGig)
+            ->with(['session.agent', 'session.gig', 'step'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('manager.alerts', compact('alerts', 'gigs', 'selectedGig'));
+    }
+
+    /**
+     * Agents tab: every agent with how many onboardings they have running and finished.
+     */
+    public function agents()
+    {
+        SessionStatus::reconcile();
+
+        $agents = Agent::withCount([
+                'sessions as in_progress' => fn ($q) => $q->where('status', 'in_progress'),
+                'sessions as completed' => fn ($q) => $q->where('status', 'completed'),
+            ])
+            ->orderBy('name')
+            ->get();
+
+        return view('manager.agents', compact('agents'));
     }
 
     /**
@@ -107,5 +133,17 @@ class ManagerDashboardController extends Controller
         $alert->save();
 
         return redirect()->back();
+    }
+
+    /**
+     * Query for unresolved alerts, limited to one gig when one is chosen.
+     */
+    private function openAlerts($gig)
+    {
+        return Alert::where('is_resolved', false)
+            ->when($gig, fn ($q) => $q->whereHas(
+                'session',
+                fn ($s) => $s->where('gig_id', $gig->id)
+            ));
     }
 }

@@ -46,5 +46,35 @@
         </span>
         Sign in with Google
     </a>
+
+    <!-- Install hint for iPhone users (iOS has no install button, so we explain the steps) -->
+    <div id="ios-install" class="mt-8 hidden rounded-2xl border border-hairline bg-slip p-4">
+        <div class="text-[15px] font-bold">Install StepWise on your iPhone</div>
+        <p class="mt-1 text-[15px] leading-snug text-muted">
+            In Safari, tap
+            <svg class="mx-0.5 inline-block align-[-3px] text-cobalt" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share">
+                <path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v8h14v-8"/>
+            </svg>
+            <strong class="text-ink">Share</strong>, then <strong class="text-ink">Add to Home Screen</strong>.
+            It opens full screen, like a normal app.
+        </p>
+    </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    // Show the hint on iPhone/iPad, but not once the app is already installed
+    (function () {
+        const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS reports as a Mac
+        const installed = window.navigator.standalone === true ||
+            window.matchMedia('(display-mode: standalone)').matches;
+
+        if (isIos && !installed) {
+            document.getElementById('ios-install').classList.remove('hidden');
+        }
+    })();
+</script>
+@endpush

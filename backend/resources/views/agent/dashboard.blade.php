@@ -5,14 +5,10 @@
 @section('content')
 <div
     class="mx-auto min-h-[100dvh] max-w-[480px] bg-counter px-5 sm:shadow-xl"
-    style="padding-top: calc(env(safe-area-inset-top) + 20px); padding-bottom: calc(env(safe-area-inset-bottom) + 28px);">
+    style="padding-top: calc(env(safe-area-inset-top) + 20px); padding-bottom: calc(env(safe-area-inset-bottom) + 96px);">
 
-    <form method="POST" action="{{ url('/logout') }}" class="flex justify-end">
-        @csrf
-        <button type="submit" class="text-sm font-semibold text-cobalt-deep">Log out</button>
-    </form>
-
-    <h1 class="mt-1 text-[30px] font-extrabold leading-[1.08] tracking-tight">{{ $agent->name }}</h1>
+    <p class="text-[15px] text-muted">Hi,</p>
+    <h1 class="text-[30px] font-extrabold leading-[1.08] tracking-tight">{{ $agent->name }}</h1>
     <p class="mt-1 text-[15px] text-muted">{{ $agent->region ?? 'No region set' }}</p>
 
     <!-- Summary -->
@@ -31,8 +27,14 @@
         </div>
     </div>
 
+    <!-- Continue the newest unfinished onboarding -->
+    @if ($current)
+        <h2 class="mt-7 text-[15px] font-semibold">Continue where you left off</h2>
+        @include('agent._session-card', ['session' => $current])
+    @endif
+
     <!-- Start a new onboarding: choose the gig first -->
-    <form method="POST" action="{{ url('/agent/sessions') }}" class="mt-6">
+    <form method="POST" action="{{ url('/agent/sessions') }}" class="mt-7">
         @csrf
 
         <h2 class="text-[15px] font-semibold">Start a new onboarding</h2>
@@ -65,73 +67,13 @@
             </div>
 
             <button type="submit"
-                    class="mt-3 h-14 w-full rounded-xl bg-cobalt text-[17px] font-bold text-white">
+                    class="mt-3 h-14 w-full rounded-xl bg-cobalt text-[17px] font-bold text-white active:bg-cobalt-deep">
                 Start onboarding
             </button>
         @endif
     </form>
 
-    <h2 class="mt-8 text-[15px] font-semibold">Your onboardings</h2>
-
-    @forelse ($sessions as $session)
-        @php
-            $saved = (int) $session->saved_steps;
-            $total = (int) ($stepCounts[$session->gig_id] ?? 0);
-
-            $pill = match ($session->status) {
-                'completed' => 'bg-ledger-soft text-ledger',
-                'abandoned' => 'bg-counter text-muted',
-                default => 'bg-cobalt-soft text-cobalt-deep',
-            };
-
-            $label = ucfirst(str_replace('_', ' ', $session->status));
-
-            $startedAt = \Carbon\Carbon::parse($session->started_at)->diffForHumans();
-
-            $lastActivity = $session->last_activity
-                ? \Carbon\Carbon::parse($session->last_activity)->diffForHumans()
-                : null;
-        @endphp
-
-        <a href="{{ url('/onboarding/' . $session->id) }}"
-           class="mt-3 block rounded-2xl border border-hairline bg-slip p-4">
-
-            <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                    <div class="text-[17px] font-bold leading-snug">{{ $session->gig->name ?? 'Onboarding' }}</div>
-                    <div class="mt-0.5 text-sm text-muted">#{{ $session->id }} &middot; Started {{ $startedAt }}</div>
-                </div>
-
-                <span class="shrink-0 rounded-full px-3 py-1 text-xs font-semibold {{ $pill }}">
-                    {{ $label }}
-                </span>
-            </div>
-
-            <!-- The same ruler as the onboarding screen: one segment per step of this gig -->
-            <div class="mt-4 flex items-center gap-1" aria-hidden="true">
-                @for ($i = 1; $i <= $total; $i++)
-                    <span class="h-2.5 flex-1 rounded-[3px] {{ $i <= $saved ? 'bg-ledger' : 'bg-hairline' }}"></span>
-                @endfor
-            </div>
-
-            <div class="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span class="text-muted">
-                    {{ $saved }} of {{ $total }} steps saved{{ $lastActivity ? ', last activity ' . $lastActivity : '' }}
-                </span>
-
-                @if ($session->open_alerts > 0)
-                    <span class="shrink-0 rounded-full bg-amber-soft px-3 py-1 text-xs font-semibold">
-                        {{ $session->open_alerts }} {{ \Illuminate\Support\Str::plural('alert', $session->open_alerts) }}
-                    </span>
-                @endif
-            </div>
-
-        </a>
-    @empty
-        <p class="mt-3 rounded-2xl bg-slip p-4 text-[15px] leading-snug text-muted">
-            No onboardings yet. Pick a gig above to start one.
-        </p>
-    @endforelse
-
 </div>
+
+@include('partials.tabbar')
 @endsection

@@ -3,39 +3,13 @@
 @section('title', 'StepWise: manager')
 
 @section('content')
-<div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 pb-12 pt-7 sm:px-8 sm:shadow-xl lg:px-12 lg:pt-10">
+<div class="mx-auto min-h-[100dvh] max-w-7xl bg-counter px-5 sm:px-8 sm:shadow-xl lg:px-12"
+     style="padding-top: calc(env(safe-area-inset-top) + 24px); padding-bottom: calc(env(safe-area-inset-bottom) + 96px);">
 
-    <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-            <h1 class="text-[30px] font-extrabold leading-[1.08] tracking-tight">Manager dashboard</h1>
-            <p class="mt-1 text-[15px] text-muted">Onboardings and alerts across all agents.</p>
-        </div>
+    <h1 class="text-[30px] font-extrabold leading-[1.08] tracking-tight">Overview</h1>
+    <p class="mt-1 text-[15px] text-muted">Onboardings across all agents.</p>
 
-        <form method="POST" action="{{ url('/logout') }}">
-            @csrf
-            <button type="submit"
-                    class="rounded-xl border border-hairline bg-slip px-4 py-2.5 text-sm font-semibold">
-                Log out
-            </button>
-        </form>
-    </div>
-
-    <!-- Gig filter -->
-    <form method="GET" action="{{ url('/manager') }}" class="mt-6 flex flex-wrap items-center gap-2">
-        <label for="gig" class="text-sm font-semibold">Gig</label>
-
-        <select id="gig" name="gig" onchange="this.form.submit()"
-                class="rounded-xl border border-hairline bg-slip px-3 py-2 text-sm">
-            <option value="">All gigs</option>
-            @foreach ($gigs as $gig)
-                <option value="{{ $gig->slug }}" @selected($selectedGig?->id === $gig->id)>{{ $gig->name }}</option>
-            @endforeach
-        </select>
-
-        <noscript>
-            <button type="submit" class="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">Filter</button>
-        </noscript>
-    </form>
+    @include('manager._gig-filter', ['action' => '/manager'])
 
     <!-- Summary -->
     <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -47,61 +21,15 @@
             <div class="text-[30px] font-extrabold leading-none">{{ $counts['completed'] }}</div>
             <div class="mt-2 text-sm text-muted">Completed</div>
         </div>
-        <div class="rounded-2xl {{ $counts['alerts'] > 0 ? 'bg-amber-soft' : 'bg-slip' }} p-4">
+        <a href="{{ url('/manager/alerts' . ($selectedGig ? '?gig=' . $selectedGig->slug : '')) }}"
+           class="rounded-2xl {{ $counts['alerts'] > 0 ? 'bg-amber-soft' : 'bg-slip' }} p-4">
             <div class="text-[30px] font-extrabold leading-none">{{ $counts['alerts'] }}</div>
-            <div class="mt-2 text-sm text-muted">Open alerts</div>
-        </div>
+            <div class="mt-2 text-sm text-muted">Open alerts &rsaquo;</div>
+        </a>
         <div class="rounded-2xl bg-slip p-4">
             <div class="text-[30px] font-extrabold leading-none">{{ $counts['agents'] }}</div>
             <div class="mt-2 text-sm text-muted">Active agents</div>
         </div>
-    </div>
-
-    <!-- Open alerts -->
-    <h2 class="mt-10 text-[18px] font-bold">Open alerts</h2>
-
-    <div class="mt-3 space-y-3">
-        @forelse ($alerts as $alert)
-            <div class="rounded-2xl border border-amber/60 bg-amber-soft p-4">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-
-                    <div>
-                        <div class="text-[16px] font-bold">{{ $alert->reason }}</div>
-
-                        <div class="mt-1 text-sm leading-snug text-ink/80">
-                            {{ $alert->session?->agent?->name ?? 'Unknown agent' }},
-                            onboarding #{{ $alert->session_id }},
-                            {{ $alert->session?->gig?->name ?? 'Unknown gig' }},
-                            step "{{ $alert->step?->title ?? 'Unknown step' }}"
-                        </div>
-
-                        <div class="mt-0.5 text-xs text-muted">
-                            Raised {{ \Carbon\Carbon::parse($alert->created_at)->diffForHumans() }}
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        <a href="{{ url('/manager/sessions/' . $alert->session_id) }}"
-                           class="rounded-xl border border-hairline bg-slip px-3 py-2 text-sm font-semibold">
-                            View onboarding
-                        </a>
-
-                        <form method="POST" action="{{ url('/manager/alerts/' . $alert->id . '/resolve') }}">
-                            @csrf
-                            <button type="submit"
-                                    class="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">
-                                Mark resolved
-                            </button>
-                        </form>
-                    </div>
-
-                </div>
-            </div>
-        @empty
-            <p class="rounded-2xl bg-ledger-soft p-4 text-[15px] text-ledger">
-                No open alerts{{ $selectedGig ? ' for this gig' : '' }}. Every active onboarding is moving along.
-            </p>
-        @endforelse
     </div>
 
     <!-- All onboardings -->
@@ -142,7 +70,7 @@
                     <tr class="border-b border-hairline last:border-0">
                         <td class="px-4 py-3">
                             <a href="{{ url('/manager/sessions/' . $session->id) }}"
-                               class="font-bold text-cobalt-deep">
+                               class="tap inline-flex items-center font-bold text-cobalt-deep">
                                 #{{ $session->id }}
                             </a>
                         </td>
@@ -190,4 +118,5 @@
     </div>
 
 </div>
+@include('partials.tabbar')
 @endsection
