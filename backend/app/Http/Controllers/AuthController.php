@@ -70,6 +70,10 @@ class AuthController extends Controller
             ]);
         }
 
+        // Keep the Google profile photo up to date for the Profile tab.
+        $user->avatar = $googleUser->getAvatar();
+        $user->save();
+
         Auth::login($user);
 
         return $this->finishLogin($request, $user);

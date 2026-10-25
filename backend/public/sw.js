@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stepwise-v5';
+const CACHE_NAME = 'stepwise-v6';
 // Pages are cached as they are visited (see fetch below); the shell is only static files.
 const SHELL = [
   '/manifest.json',

@@ -24,6 +24,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 
 // Profile tab (agents and managers)
 Route::get('/profile', [ProfileController::class, 'show'])->middleware('auth');
+Route::post('/profile/region', [ProfileController::class, 'updateRegion'])->middleware(['auth', 'role:agent']);
 
 // Agent pages and the endpoints the wizard calls
 Route::middleware(['auth', 'role:agent'])->group(function () {

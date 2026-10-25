@@ -3,14 +3,8 @@
 // Syncing itself still happens inside the wizard, so the chip links there.
 (function () {
 
-    const strip = document.getElementById('sync-strip');
-
-    if (!strip) return;
-
-    const offlineText = document.getElementById('offline-text');
-    const chip = document.getElementById('sync-chip');
-
-    // Same database name, version and store as the wizard uses
+    // Same database name, version and store as the wizard uses.
+    // Shared as window.readSyncQueue so the Profile page can show it too.
     function readQueue() {
         return new Promise((resolve) => {
 
@@ -32,6 +26,15 @@
 
         });
     }
+
+    window.readSyncQueue = readQueue;
+
+    const strip = document.getElementById('sync-strip');
+
+    if (!strip) return;
+
+    const offlineText = document.getElementById('offline-text');
+    const chip = document.getElementById('sync-chip');
 
     async function update() {
 
