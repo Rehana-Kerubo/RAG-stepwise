@@ -29,6 +29,32 @@
 
     window.readSyncQueue = readQueue;
 
+    // Logging out on a shared phone: warn about steps that have not synced yet
+    // (they are kept, never deleted), then remove the pages saved for offline
+    // use so the next person cannot open them.
+    document.querySelectorAll('form[data-logout]').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+
+            event.preventDefault();
+
+            const queue = await readQueue();
+
+            if (queue.length && !confirm(
+                `${queue.length} step(s) on this phone have not synced yet. ` +
+                'Log out anyway? They will sync next time you open that onboarding while logged in.'
+            )) {
+                return;
+            }
+
+            try {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((key) => caches.delete(key)));
+            } catch (error) {}
+
+            form.submit(); // submit() does not fire this handler again
+        });
+    });
+
     const strip = document.getElementById('sync-strip');
 
     if (!strip) return;

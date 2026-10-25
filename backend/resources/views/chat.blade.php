@@ -387,7 +387,7 @@
     // SESSION
     // ============================================================
 
-    const SESSION_ID = {{ $sessionId ?? 3 }};
+    const SESSION_ID = {{ $sessionId }};
     // For the completion card (completedAt is empty until the onboarding is finished)
     const GIG_NAME = @json($gigName ?? 'Onboarding');
     const STARTED_AT = @json($startedAt ?? null);
@@ -837,7 +837,7 @@
 
             stepsList.innerHTML = `
                 <div class="text-center text-sm font-medium text-red-700">
-                    ${error.message}
+                    ${esc(error.message)}
                 </div>
             `;
 
@@ -935,12 +935,12 @@
 
             item.innerHTML = `
                 <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${badge}">
-                    ${marker}
+                    ${esc(marker)}
                 </div>
 
                 <div class="min-w-0">
-                    <div class="text-[15px] font-semibold leading-snug">${step.title}</div>
-                    <div class="mt-0.5 text-sm leading-snug text-muted">${status}</div>
+                    <div class="text-[15px] font-semibold leading-snug">${esc(step.title)}</div>
+                    <div class="mt-0.5 text-sm leading-snug text-muted">${esc(status)}</div>
                 </div>
             `;
 

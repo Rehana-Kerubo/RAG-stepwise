@@ -28,9 +28,6 @@ Route::post('/profile/region', [ProfileController::class, 'updateRegion'])->midd
 
 // Agent pages and the endpoints the wizard calls
 Route::middleware(['auth', 'role:agent'])->group(function () {
-    Route::get('/chat', function () {
-        return view('chat');
-    });
     Route::get('/agent', [AgentDashboardController::class, 'show']);
     Route::get('/agent/onboardings', [AgentDashboardController::class, 'onboardings']);
     Route::post('/agent/sessions', [AgentDashboardController::class, 'startSession']);
@@ -39,7 +36,8 @@ Route::middleware(['auth', 'role:agent'])->group(function () {
     Route::get('/wizard/sessions/{sessionId}/steps', [StepProgressController::class, 'index']);
     Route::post('/wizard/sessions/{sessionId}/steps/{stepId}/submit', [StepProgressController::class, 'submit']);
     Route::get('/wizard/steps/{stepId}/guidance', [StepProgressController::class, 'guidance']);
-    Route::post('/wizard/ask', [ChatController::class, 'ask']);
+    // At most 10 questions a minute per agent: the AI runs on a CPU and is slow.
+    Route::post('/wizard/ask', [ChatController::class, 'ask'])->middleware('throttle:10,1');
 });
 
 // Manager pages

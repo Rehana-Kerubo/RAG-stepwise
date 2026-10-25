@@ -106,7 +106,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         // Always go to the user's own home. (Not intended(): the service worker
-        // requests /chat in the background, which would send managers there.)
+        // can request pages in the background, which could send a user to the wrong one.)
         $request->session()->forget('url.intended');
 
         return redirect($user->homeUrl());

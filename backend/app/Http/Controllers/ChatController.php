@@ -16,19 +16,23 @@ class ChatController extends Controller
         $validated = $request->validate([
             'session_id' => 'required|exists:onboarding_sessions,id',
             'step_id'    => 'nullable|exists:steps,id',
-            'question'   => 'required|string',
+            'question'   => 'required|string|max:500',
         ]);
 
         // The agent may only ask about their own onboarding (404 otherwise).
         $session = OnboardingSession::ownedBy($request->user())->findOrFail($validated['session_id']);
 
+        $step = $validated['step_id'] ? \App\Models\Step::find($validated['step_id']) : null;
+
+        // The step must be part of this onboarding's gig, or the question would be
+        // logged (and counted for alerts and step difficulty) against the wrong gig.
+        if ($step && (int) $step->gig_id !== (int) $session->gig_id) {
+            return response()->json([
+                'message' => 'This step does not belong to this onboarding.',
+            ], 422);
+        }
+
         // Call the Flask RAG service
-        $step = null;
-
-    if ($validated['step_id']) {
-    $step = \App\Models\Step::find($validated['step_id']);
-    }
-
     try {
         $response = Http::timeout(120)->post(
         rtrim(env('FLASK_API_URL', 'http://localhost:5000'), '/') . '/ask',

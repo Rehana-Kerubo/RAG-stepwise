@@ -113,7 +113,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ url('/logout') }}" class="mt-7">
+    <form method="POST" action="{{ url('/logout') }}" class="mt-7" data-logout>
         @csrf
         <button type="submit"
                 class="h-14 w-full rounded-xl border border-hairline bg-slip text-[17px] font-bold text-red-700">
