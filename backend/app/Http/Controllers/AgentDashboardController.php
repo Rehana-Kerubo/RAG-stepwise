@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Gig;
 use App\Models\OnboardingSession;
 use App\Models\Step;
 use App\Services\SessionStatus;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AgentDashboardController extends Controller
 {
@@ -21,8 +21,8 @@ class AgentDashboardController extends Controller
         $stepCounts = $this->stepCounts();
         $sessions = $this->sessionsFor($agent);
 
-        // Gigs the agent can start (a gig with no steps cannot be run).
-        $gigs = Gig::has('steps')->orderBy('name')->get();
+        // Gigs the agent can start: assigned by a manager, and with steps to run.
+        $gigs = $agent->gigs()->has('steps')->orderBy('name')->get();
 
         $counts = [
             'in_progress' => $sessions->where('status', 'in_progress')->count(),
@@ -67,8 +67,15 @@ class AgentDashboardController extends Controller
     {
         $agent = $request->user()->agent;
 
+        // The gig must be assigned to this agent (a row in agent_gig).
+        // Checked here on the server, not only by hiding it in the picker.
         $validated = $request->validate([
-            'gig_id' => ['required', 'exists:gigs,id'],
+            'gig_id' => [
+                'required',
+                Rule::exists('agent_gig', 'gig_id')->where('agent_id', $agent->id),
+            ],
+        ], [
+            'gig_id.exists' => 'This gig is not assigned to you. Ask your manager.',
         ]);
 
         $session = OnboardingSession::create([

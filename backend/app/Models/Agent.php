@@ -12,4 +12,13 @@ class Agent extends Model
     {
         return $this->hasMany(OnboardingSession::class);
     }
+
+    /**
+     * Gigs a manager has assigned to this agent (table agent_gig).
+     */
+    public function gigs()
+    {
+        return $this->belongsToMany(Gig::class, 'agent_gig')
+            ->withPivot('assigned_by', 'assigned_at');
+    }
 }

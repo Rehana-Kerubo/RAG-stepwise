@@ -50,7 +50,10 @@ class ManagerDashboardController extends Controller
             'in_progress' => $sessions->where('status', 'in_progress')->count(),
             'completed' => $sessions->where('status', 'completed')->count(),
             'alerts' => $this->openAlerts($selectedGig)->count(),
-            'agents' => Agent::where('status', 'active')->count(),
+            // With a gig chosen: active agents assigned to that gig.
+            'agents' => Agent::where('status', 'active')
+                ->when($selectedGig, fn ($q) => $q->whereHas('gigs', fn ($g) => $g->whereKey($selectedGig->id)))
+                ->count(),
         ];
 
         return view('manager.dashboard', compact(
@@ -84,6 +87,7 @@ class ManagerDashboardController extends Controller
         SessionStatus::reconcile();
 
         $agents = Agent::withCount([
+                'gigs',
                 'sessions as in_progress' => fn ($q) => $q->where('status', 'in_progress'),
                 'sessions as completed' => fn ($q) => $q->where('status', 'completed'),
             ])
@@ -91,6 +95,54 @@ class ManagerDashboardController extends Controller
             ->get();
 
         return view('manager.agents', compact('agents'));
+    }
+
+    /**
+     * One agent: every gig with an assign/unassign switch and the agent's progress on it.
+     */
+    public function agent($agentId)
+    {
+        SessionStatus::reconcile();
+
+        $agent = Agent::findOrFail($agentId);
+        $gigs = Gig::withCount('steps')->orderBy('name')->get();
+        $assignedIds = $agent->gigs()->pluck('gigs.id');
+
+        // This agent's onboardings, grouped per gig: [gig_id => [session, ...]]
+        $sessionsByGig = OnboardingSession::where('agent_id', $agent->id)
+            ->withCount(['stepProgress as saved_steps' => fn ($q) => $q->whereNotNull('completed_at')])
+            ->orderByDesc('started_at')
+            ->get()
+            ->groupBy('gig_id');
+
+        return view('manager.agent', compact('agent', 'gigs', 'assignedIds', 'sessionsByGig'));
+    }
+
+    /**
+     * Assign (assign=1) or unassign (assign=0) a gig for an agent.
+     * Sending the wanted state, not "toggle", means a double tap cannot flip it back.
+     * Unassigning only stops NEW onboardings; ones already started keep working.
+     */
+    public function assignGig(Request $request, $agentId, $gigId)
+    {
+        $agent = Agent::findOrFail($agentId);
+        $gig = Gig::findOrFail($gigId);
+
+        if ($request->boolean('assign')) {
+            // Already assigned: leave the original row (and date) alone.
+            if (! $agent->gigs()->whereKey($gig->id)->exists()) {
+                $agent->gigs()->attach($gig->id, [
+                    'assigned_by' => $request->user()->id,
+                    'assigned_at' => now(),
+                ]);
+            }
+            $message = "{$gig->name} assigned to {$agent->name}.";
+        } else {
+            $agent->gigs()->detach($gig->id);
+            $message = "{$gig->name} removed from {$agent->name}.";
+        }
+
+        return redirect('/manager/agents/' . $agent->id)->with('status', $message);
     }
 
     /**

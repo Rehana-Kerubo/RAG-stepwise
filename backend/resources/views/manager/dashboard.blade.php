@@ -28,7 +28,7 @@
         </a>
         <div class="rounded-2xl bg-slip p-4">
             <div class="text-[30px] font-extrabold leading-none">{{ $counts['agents'] }}</div>
-            <div class="mt-2 text-sm text-muted">Active agents</div>
+            <div class="mt-2 text-sm text-muted">{{ $selectedGig ? 'Agents on this gig' : 'Active agents' }}</div>
         </div>
     </div>
 

@@ -12,4 +12,13 @@ class Gig extends Model
     {
         return $this->hasMany(Step::class)->orderBy('order_number');
     }
+
+    /**
+     * Agents assigned to this gig (table agent_gig).
+     */
+    public function agents()
+    {
+        return $this->belongsToMany(Agent::class, 'agent_gig')
+            ->withPivot('assigned_by', 'assigned_at');
+    }
 }

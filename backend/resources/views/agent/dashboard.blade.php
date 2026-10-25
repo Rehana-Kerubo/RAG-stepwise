@@ -39,10 +39,17 @@
 
         <h2 class="text-[15px] font-semibold">Start a new onboarding</h2>
 
+        @error('gig_id')
+            <p class="mt-2 rounded-2xl bg-red-100 p-3 text-[15px] font-semibold text-red-800" role="alert">{{ $message }}</p>
+        @enderror
+
         @if ($gigs->isEmpty())
-            <p class="mt-2 rounded-2xl bg-slip p-4 text-[15px] leading-snug text-muted">
-                No gigs are available yet.
-            </p>
+            <div class="mt-2 rounded-2xl bg-slip p-5 text-center">
+                <div class="text-[17px] font-bold">No gig yet</div>
+                <p class="mt-1 text-[15px] leading-snug text-muted">
+                    Your manager hasn't assigned you a gig yet. You'll see it here as soon as they do.
+                </p>
+            </div>
         @else
             <div class="mt-2 space-y-2">
                 @foreach ($gigs as $gig)
