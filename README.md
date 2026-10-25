@@ -199,7 +199,7 @@ The feature tests in `backend/tests/Feature` run on a temporary in-memory SQLite
 
 An agent asking for another agent's onboarding gets a 404; the wrong role, or an inactive agent, gets a 403.
 
-**Flask (`RAG/app.py`)**: `GET /health`, `POST /ask` (takes `question` and `gig`).
+**Flask (`RAG/app.py`)**: `GET /health`, `POST /ask` (takes `question`, `gig`, and optionally the current `step`'s own text: title, instructions, guidance, validation rules). With a step, it runs two searches, "step title: question" and the question alone, and takes the best chunks from each in turn, so short follow-ups ("how do I do that?") find the step's documents while specific questions keep their own best match.
 
 ## Database
 

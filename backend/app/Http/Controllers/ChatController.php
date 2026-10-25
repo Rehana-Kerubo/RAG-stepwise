@@ -34,20 +34,26 @@ class ChatController extends Controller
             ], 422);
         }
 
-        // Call the Flask RAG service
-    try {
-        $response = Http::timeout(120)->post(
-        config('services.flask.url') . '/ask',
-        [
-            'question' => $validated['question'],
-            'gig' => $session->gig?->slug,
-         ]
-    );
-    } catch (\Illuminate\Http\Client\ConnectionException $e) {
-        return response()->json([
-            'error' => 'Stepwise AI service did not respond: ' . $e->getMessage(),
-        ], 502);
-    }
+        // Call the Flask RAG service. The current step's own text (from the steps
+        // table) goes along, so a short follow-up like "how do I do that?" has
+        // context. Nothing the agent entered (photos, IDs, codes) is ever sent.
+        try {
+            $response = Http::timeout(120)->post(config('services.flask.url') . '/ask', [
+                'question' => $validated['question'],
+                'gig' => $session->gig?->slug,
+                'step' => $step ? [
+                    'order_number' => $step->order_number,
+                    'title' => $step->title,
+                    'instructions' => $step->instructions,
+                    'guidance_label' => $step->guidance_label,
+                    'validation_rules' => $step->validation_rules,
+                ] : null,
+            ]);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return response()->json([
+                'error' => 'Stepwise AI service did not respond: ' . $e->getMessage(),
+            ], 502);
+        }
 
         if (! $response->successful()) {
             return response()->json([

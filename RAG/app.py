@@ -66,6 +66,25 @@ def retrieve(question, top_k=TOP_K, gig=None):
     return chunks, sources
 
 
+def retrieve_for_step(question, step_title, top_k=TOP_K, gig=None):
+    """
+    Two searches, merged: "step title: question" (so a vague follow-up such as
+    "how do I do that?" finds this step's documents) and the question alone (so a
+    specific question about something else keeps its own best match). Results are
+    taken in turn from each, without duplicates.
+    """
+    with_step = list(zip(*retrieve(f"{step_title}: {question}", top_k, gig)))
+    question_only = list(zip(*retrieve(question, top_k, gig)))
+
+    picked = []
+    for pair in zip(with_step, question_only):
+        for chunk, source in pair:
+            if chunk not in [c for c, _ in picked] and len(picked) < top_k:
+                picked.append((chunk, source))
+
+    return [c for c, _ in picked], [s for _, s in picked]
+
+
 def build_prompt(question, chunks, step=None):
 
     context = "\n\n---\n\n".join(chunks)
@@ -153,7 +172,10 @@ def ask():
     if not question:
         return jsonify({"error": "Missing 'question' in request body"}), 400
 
-    chunks, sources = retrieve(question, top_k, gig)
+    if step and step.get("title"):
+        chunks, sources = retrieve_for_step(question, step["title"], top_k, gig)
+    else:
+        chunks, sources = retrieve(question, top_k, gig)
     prompt = build_prompt(question, chunks, step=step)
     answer = ask_ollama(prompt, max_tokens)
 
