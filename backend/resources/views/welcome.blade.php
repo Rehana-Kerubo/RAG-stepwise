@@ -47,6 +47,11 @@
         Sign in with Google
     </a>
 
+    <p class="mt-4 text-center text-xs leading-snug text-muted">
+        By continuing, you agree to our
+        <a href="{{ url('/terms') }}" class="font-semibold underline">Terms of use</a> and
+        <a href="{{ url('/privacy') }}" class="font-semibold underline">Privacy policy</a>.
+    </p>
     <!-- Install hint for iPhone users (iOS has no install button, so we explain the steps) -->
     <div id="ios-install" class="mt-8 hidden rounded-2xl border border-hairline bg-slip p-4">
         <div class="text-[15px] font-bold">Install StepWise on your iPhone</div>
