@@ -26,4 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->is('wizard/*') || $request->expectsJson(),
         );
-    })->create();
+    })
+        ->withMiddleware(function (Middleware $middleware) {
+       $middleware->trustProxies(at: '*');
+   })
+    ->create();
+
