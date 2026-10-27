@@ -961,6 +961,49 @@
         return div.innerHTML.replace(/"/g, '&quot;');
     }
 
+async function cameraState() {
+    try {
+        if (!navigator.permissions) return 'prompt';
+        return (await navigator.permissions.query({ name: 'camera' })).state;
+    } catch (e) { return 'prompt'; } // Safari can't query this
+}
+
+async function requestCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) return 'unsupported';
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(t => t.stop()); // only needed the permission
+        return 'granted';
+    } catch (e) { return 'denied'; }
+}
+
+async function setupCameraGate() {
+    stepInput.disabled = true;
+    const gate = document.getElementById('camera-gate');
+    const label = document.getElementById('capture-label');
+    const text = document.getElementById('camera-gate-text');
+    const allow = document.getElementById('camera-allow');
+
+    const reveal = () => {
+        stepInput.disabled = false;
+        gate.classList.add('hidden');
+        label.classList.remove('hidden');
+    };
+
+    if (await cameraState() === 'granted' || localStorage.getItem('camera_ok')) return reveal();
+
+    allow.onclick = async () => {
+        const result = await requestCamera();
+        if (result === 'granted' || result === 'unsupported') {
+            localStorage.setItem('camera_ok', '1');
+            return reveal();
+        }
+        text.textContent = "Camera is off. StepWise can't verify this step without a live photo. Turn it on in your phone's settings, then tap Try again.";
+        allow.textContent = 'Try again';
+    };
+
+}
+
     function renderStepInput(step) {
 
         const config = step.input_config || {};
@@ -992,6 +1035,13 @@
                     <p class="mb-3 text-[15px] leading-snug text-muted">
                         ${esc(config.description || '')}
                     </p>
+
+                    <div id="camera-gate" class="rounded-2xl border border-hairline bg-slip p-4">
+                        <p class="text-[16px] font-semibold">StepWise needs access to your camera</p>
+                        <div class="mt-3 flex gap-2">
+                            <button id="camera-allow" type="button" class="h-11 rounded-xl bg-cobalt px-4 text-[15px] font-bold text-white">Allow Camera</button>
+                        </div>
+                    </div>
 
                     <label class="relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-hairline bg-slip text-center focus-within:border-cobalt">
                         <input type="file" id="step-input"
@@ -1079,7 +1129,7 @@
         stepInput = stepInputContainer.querySelector('#step-input');
 
         // Show a preview of the captured photo
-        if (step.input_type === 'photo' && stepInput) {
+        if (step.input_type === 'photo' && stepInput) setupCameraGate(); {
 
             stepInput.addEventListener('change', () => {
 

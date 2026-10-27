@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stepwise-v10';
+const CACHE_NAME = 'stepwise-v14';
 // Pages are cached as they are visited (see fetch below); the shell is only static files.
 const SHELL = [
   '/manifest.json',
@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.pathname.startsWith('/api/') || url.pathname.startsWith('/wizard/')) return;
 
   event.respondWith(
-    fetch(req)
+    fetch(req, req.mode === 'navigate' ? { cache: 'no-store' } : undefined)
       .then((res) => {
         // Keep good pages (and redirects) for offline use, never error pages
         if (res.status < 400) {

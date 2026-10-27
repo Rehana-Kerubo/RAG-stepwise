@@ -29,7 +29,7 @@
     }
 @endphp
 
-<div class="fixed inset-x-0 bottom-0 z-30">
+<div class="fixed inset-x-0 bottom-0 z-30" style="view-transition-name: tabbar;">
 
     <!-- Offline / waiting-to-sync strip (filled in by /js/sync-status.js) -->
     <div id="sync-strip" class="hidden" role="status">
@@ -74,5 +74,18 @@
         </div>
     </nav>
 </div>
+
+<script>
+    document.querySelectorAll('nav a.tap').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('nav a.tap').forEach(t => {
+                t.classList.replace('text-cobalt', 'text-muted');
+                t.querySelector('span.absolute')?.classList.replace('bg-cobalt', 'bg-transparent');
+            });
+            tab.classList.replace('text-muted', 'text-cobalt');
+            tab.querySelector('span.absolute')?.classList.replace('bg-transparent', 'bg-cobalt');
+        });
+    });
+</script>
 
 <script src="/js/sync-status.js" defer></script>
